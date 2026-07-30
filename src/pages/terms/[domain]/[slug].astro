@@ -1,0 +1,57 @@
+---
+import { getCollection, render } from 'astro:content';
+import ReaderLayout from '../../../layouts/ReaderLayout.astro';
+import { DOMAIN_GROUPS } from '../../../lib/domainGroups';
+import { slugify } from '../../../lib/vault';
+import { getBacklinksFor } from '../../../lib/backlinks';
+
+export async function getStaticPaths() {
+  const terms = await getCollection('terms');
+  const notes = terms.filter((t) => !t.data.isMoc);
+
+  const byDomain = new Map<string, typeof notes>();
+  for (const n of notes) {
+    if (!byDomain.has(n.data.domainSlug)) byDomain.set(n.data.domainSlug, []);
+    byDomain.get(n.data.domainSlug)!.push(n);
+  }
+  for (const list of byDomain.values()) {
+    list.sort((a, b) => a.data.title.localeCompare(b.data.title));
+  }
+
+  return notes.map((entry) => {
+    const siblings = byDomain.get(entry.data.domainSlug)!;
+    const idx = siblings.findIndex((s) => s.id === entry.id);
+    return {
+      params: { domain: entry.data.domainSlug, slug: entry.data.slug },
+      props: {
+        entry,
+        prev: idx > 0 ? siblings[idx - 1] : undefined,
+        next: idx < siblings.length - 1 ? siblings[idx + 1] : undefined,
+      },
+    };
+  });
+}
+
+const { entry, prev, next } = Astro.props;
+const { Content, headings } = await render(entry);
+
+const groupTitle = DOMAIN_GROUPS.find((g) => g.domains.includes(entry.data.domain))?.title;
+const ownRoute = `/terms/${entry.data.domainSlug}/${entry.data.slug}`;
+const backlinks = await getBacklinksFor(ownRoute);
+---
+
+<ReaderLayout
+  title={entry.data.title}
+  crumbs={[
+    { label: 'Home', href: '/' },
+    { label: groupTitle ?? 'Terms & Knowledge', href: groupTitle ? `/terms#${slugify(groupTitle)}` : '/terms' },
+    { label: entry.data.domain, href: `/terms/${entry.data.domainSlug}` },
+    { label: entry.data.title },
+  ]}
+  headings={headings}
+  prev={prev && { title: prev.data.title, href: `/terms/${prev.data.domainSlug}/${prev.data.slug}` }}
+  next={next && { title: next.data.title, href: `/terms/${next.data.domainSlug}/${next.data.slug}` }}
+  backlinks={backlinks}
+>
+  <Content />
+</ReaderLayout>

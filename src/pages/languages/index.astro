@@ -1,0 +1,150 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import CornerFrame from '../../components/ornaments/CornerFrame.astro';
+import MeanderDivider from '../../components/ornaments/MeanderDivider.astro';
+import MindMap from '../../components/MindMap.astro';
+import { LANGUAGE_CATEGORY_ORDER, LANGUAGE_CATEGORY_LABELS } from '../../lib/domainGroups';
+
+const languages = await getCollection('languages');
+const notes = languages.filter((l) => !l.data.isMoc);
+const moc = languages.find((l) => l.data.isMoc);
+const { Content } = moc ? await render(moc) : { Content: null };
+
+const categories = LANGUAGE_CATEGORY_ORDER.map((key) => ({
+  key,
+  languages: notes
+    .filter((n) => (n.data.category ?? '') === key)
+    .sort((a, b) => a.data.title.localeCompare(b.data.title))
+    .map((n) => ({ title: n.data.title, slug: n.data.slug, status: n.data.status })),
+}));
+
+const knownCount = notes.filter((n) => n.data.status === 'known').length;
+---
+
+<BaseLayout title="Programming Languages" description="50 programming languages mapped by paradigm, with a live mind map.">
+  <div class="lang-hub">
+    <header class="lang-hero">
+      <p class="font-pixel lang-kicker">The Great Hall</p>
+      <h1>Programming Languages</h1>
+      <p class="lang-tagline">
+        {notes.length} languages across seven paradigms. {knownCount} already known, the rest are the map ahead.
+      </p>
+    </header>
+
+    <CornerFrame class="surface mindmap-frame">
+      <MindMap categories={categories} />
+    </CornerFrame>
+
+    <MeanderDivider class="section-divider" />
+
+    <section class="lang-grid-section">
+      {categories.map((cat) => (
+        <div class="lang-grid-group">
+          <h2>{LANGUAGE_CATEGORY_LABELS[cat.key] ?? cat.key}</h2>
+          <ul>
+            {cat.languages.map((lang) => (
+              <li>
+                <a href={`/languages/${lang.slug}`}>
+                  {lang.title}
+                  {lang.status === 'known' && (
+                    <i class="known-dot" role="img" aria-label="Already known" data-tooltip="Already known" />
+                  )}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
+
+    <MeanderDivider class="section-divider" />
+
+    {Content && (
+      <CornerFrame class="page-leaf moc-frame">
+        <div class="vault-prose">
+          <Content />
+        </div>
+      </CornerFrame>
+    )}
+  </div>
+</BaseLayout>
+
+<style>
+  .lang-hub {
+    max-width: 74rem;
+    margin: 0 auto;
+    padding: 2.5rem 2rem 6rem;
+  }
+  .lang-hero {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .lang-kicker {
+    font-size: 0.62rem;
+    color: var(--brass);
+    letter-spacing: 0.08em;
+  }
+  .lang-hero h1 {
+    font-size: 2.6rem;
+    margin: 0.5rem 0 0.75rem;
+  }
+  .lang-tagline {
+    color: var(--ink-muted);
+    max-width: 40rem;
+    margin: 0 auto;
+  }
+
+  .mindmap-frame {
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .section-divider {
+    margin: 2.5rem auto;
+    max-width: 20rem;
+  }
+
+  .lang-grid-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.75rem;
+  }
+  .lang-grid-group h2 {
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--brass);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.6rem;
+  }
+  .lang-grid-group ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .lang-grid-group li a {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0;
+    color: var(--ink);
+    text-decoration: none;
+    border-bottom: none;
+  }
+  .lang-grid-group li a:hover {
+    color: var(--accent);
+  }
+  .known-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--brass);
+    flex-shrink: 0;
+  }
+
+  .moc-frame {
+    padding: 2rem 2.5rem;
+  }
+</style>

@@ -1,0 +1,353 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import CornerFrame from '../../components/ornaments/CornerFrame.astro';
+---
+
+<BaseLayout title="Review" description="Spaced-repetition flashcards drawn from every definition in the archive.">
+  <div class="review-page">
+    <header class="review-header">
+      <p class="font-pixel review-kicker">Recite &amp; Retain</p>
+      <h1>Review</h1>
+      <p class="review-tagline">
+        One card at a time, drawn from every "Definition:" line in the archive. Grade yourself
+        honestly — it only changes when you see the card again.
+      </p>
+      <p id="review-progress" class="review-progress font-pixel"></p>
+    </header>
+
+    <div class="review-stage">
+      <CornerFrame class="page-leaf review-card">
+        <div class="review-card-inner">
+          <p id="review-loading" class="review-loading">Gathering cards…</p>
+
+          <div id="review-content" hidden>
+            <p class="review-face-label font-pixel">Question</p>
+            <h2 id="review-front" class="review-front"></h2>
+
+            <div id="review-back-wrap" hidden>
+              <div class="review-divider"></div>
+              <p class="review-face-label font-pixel">Answer</p>
+              <p id="review-back" class="review-back"></p>
+            </div>
+
+            <button id="review-show-btn" type="button" class="btn btn-primary review-show-btn">
+              Show Answer
+            </button>
+
+            <div id="review-grade-wrap" class="review-grade-wrap" hidden>
+              <button type="button" class="grade-btn grade-again" data-grade="again">
+                Again<small>&lt; 1 day</small>
+              </button>
+              <button type="button" class="grade-btn grade-hard" data-grade="hard">
+                Hard<small>soon</small>
+              </button>
+              <button type="button" class="grade-btn grade-good" data-grade="good">
+                Good<small>days</small>
+              </button>
+              <button type="button" class="grade-btn grade-easy" data-grade="easy">
+                Easy<small>weeks</small>
+              </button>
+            </div>
+          </div>
+
+          <div id="review-empty" class="review-empty" hidden>
+            <p class="font-pixel">All caught up</p>
+            <p>No cards are due right now. Come back tomorrow, or browse the archive.</p>
+            <a class="btn btn-secondary" href="/terms">Open the Archive</a>
+          </div>
+
+          <div id="review-complete" class="review-empty" hidden>
+            <p class="font-pixel">Session complete</p>
+            <p id="review-complete-count"></p>
+            <div class="review-complete-actions">
+              <button id="review-again-btn" type="button" class="btn btn-secondary">Study more</button>
+              <a class="btn btn-primary" href="/">Back home</a>
+            </div>
+          </div>
+        </div>
+      </CornerFrame>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { loadStates, saveState, isDue, grade as gradeCard, type Grade } from '../../lib/srs-client';
+
+  interface Card {
+    route: string;
+    title: string;
+    summary: string;
+  }
+
+  const loadingEl = document.getElementById('review-loading');
+  const contentEl = document.getElementById('review-content');
+  const emptyEl = document.getElementById('review-empty');
+  const completeEl = document.getElementById('review-complete');
+  const completeCountEl = document.getElementById('review-complete-count');
+  const progressEl = document.getElementById('review-progress');
+
+  const frontEl = document.getElementById('review-front');
+  const backWrap = document.getElementById('review-back-wrap');
+  const backEl = document.getElementById('review-back');
+  const showBtn = document.getElementById('review-show-btn');
+  const gradeWrap = document.getElementById('review-grade-wrap');
+  const againBtn = document.getElementById('review-again-btn');
+
+  const MAX_SESSION = 25;
+
+  async function init() {
+    const res = await fetch('/flashcards-index.json');
+    const all: Card[] = await res.json();
+    let states = loadStates();
+
+    function buildQueue(): Card[] {
+      states = loadStates();
+      const due = all.filter((c) => states[c.route] && isDue(states[c.route]));
+      const fresh = all.filter((c) => !states[c.route]);
+      const queue = [...due];
+      for (const c of fresh) {
+        if (queue.length >= MAX_SESSION) break;
+        queue.push(c);
+      }
+      for (let i = queue.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [queue[i], queue[j]] = [queue[j], queue[i]];
+      }
+      return queue;
+    }
+
+    let queue = buildQueue();
+    let idx = 0;
+    let studied = 0;
+
+    loadingEl?.setAttribute('hidden', '');
+
+    function showCard() {
+      if (idx >= queue.length) {
+        contentEl?.setAttribute('hidden', '');
+        if (progressEl) progressEl.textContent = '';
+        if (completeCountEl) {
+          completeCountEl.textContent =
+            studied === 0 ? "You're all caught up." : `You reviewed ${studied} card${studied === 1 ? '' : 's'}.`;
+        }
+        completeEl?.removeAttribute('hidden');
+        return;
+      }
+      const card = queue[idx];
+      if (frontEl) frontEl.textContent = card.title;
+      if (backEl) backEl.textContent = card.summary;
+      backWrap?.setAttribute('hidden', '');
+      gradeWrap?.setAttribute('hidden', '');
+      showBtn?.removeAttribute('hidden');
+      if (progressEl) progressEl.textContent = `${idx + 1} / ${queue.length}`;
+    }
+
+    showBtn?.addEventListener('click', () => {
+      backWrap?.removeAttribute('hidden');
+      gradeWrap?.removeAttribute('hidden');
+      showBtn.setAttribute('hidden', '');
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.grade-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const g = btn.dataset.grade as Grade;
+        const card = queue[idx];
+        const newState = gradeCard(states[card.route], card.route, g);
+        saveState(states, newState);
+        studied++;
+        idx++;
+        showCard();
+      });
+    });
+
+    againBtn?.addEventListener('click', () => {
+      queue = buildQueue();
+      idx = 0;
+      studied = 0;
+      completeEl?.setAttribute('hidden', '');
+      emptyEl?.setAttribute('hidden', '');
+      if (queue.length === 0) {
+        emptyEl?.removeAttribute('hidden');
+        if (progressEl) progressEl.textContent = '';
+      } else {
+        contentEl?.removeAttribute('hidden');
+        showCard();
+      }
+    });
+
+    if (queue.length === 0) {
+      emptyEl?.removeAttribute('hidden');
+    } else {
+      contentEl?.removeAttribute('hidden');
+      showCard();
+    }
+  }
+
+  init();
+</script>
+
+<style>
+  .review-page {
+    max-width: 44rem;
+    margin: 0 auto;
+    padding: 2.5rem 2rem 5rem;
+  }
+  .review-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .review-kicker {
+    font-size: 0.62rem;
+    color: var(--brass);
+    letter-spacing: 0.08em;
+  }
+  .review-header h1 {
+    font-size: 2.1rem;
+    margin: 0.5rem 0 0.75rem;
+  }
+  .review-tagline {
+    color: var(--ink-muted);
+    max-width: 30rem;
+    margin: 0 auto;
+  }
+  .review-progress {
+    margin-top: 1rem;
+    font-size: 0.62rem;
+    color: var(--brass);
+    letter-spacing: 0.05em;
+    min-height: 1em;
+  }
+
+  .review-card {
+    min-height: 20rem;
+  }
+  .review-card-inner {
+    padding: 2.5rem 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    min-height: 15rem;
+    justify-content: center;
+  }
+
+  .review-loading {
+    color: var(--ink-faint);
+    font-size: 0.85rem;
+  }
+
+  .review-face-label {
+    font-size: 0.58rem;
+    color: var(--brass);
+    letter-spacing: 0.06em;
+    margin: 0 0 0.6rem;
+  }
+  .review-front {
+    font-size: 1.6rem;
+    margin: 0 0 0.5rem;
+  }
+  .review-divider {
+    width: 3rem;
+    height: 1px;
+    background: var(--border);
+    margin: 1.5rem auto;
+  }
+  .review-back {
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: var(--ink-muted);
+    max-width: 32rem;
+    margin: 0;
+  }
+
+  .review-show-btn {
+    margin-top: 2rem;
+  }
+
+  .review-grade-wrap {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.6rem;
+    margin-top: 2rem;
+    width: 100%;
+  }
+  .grade-btn {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.6rem 0.4rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg-inset);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .grade-btn small {
+    font-family: var(--font-body);
+    font-size: 0.68rem;
+    color: var(--ink-faint);
+  }
+  .grade-again { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+  .grade-again:hover { background: var(--accent); color: var(--accent-ink); }
+  .grade-again:hover small { color: var(--accent-ink); opacity: 0.8; }
+  .grade-hard:hover, .grade-good:hover, .grade-easy:hover {
+    border-color: var(--brass);
+  }
+
+  .review-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .review-empty p:first-child {
+    font-size: 0.7rem;
+    color: var(--brass);
+    letter-spacing: 0.05em;
+  }
+  .review-empty p {
+    color: var(--ink-muted);
+    max-width: 24rem;
+  }
+  .review-complete-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 0.7rem 1.5rem;
+    border-radius: 3px;
+    text-decoration: none;
+    font-family: var(--font-display);
+    font-size: 0.82rem;
+    letter-spacing: 0.05em;
+    border: 1px solid var(--border-strong);
+    cursor: pointer;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+  }
+  .btn-primary:hover {
+    background: var(--accent-strong);
+    color: var(--accent-ink);
+  }
+  .btn-secondary {
+    color: var(--ink);
+    background: var(--bg-elevated);
+  }
+  .btn-secondary:hover {
+    border-color: var(--brass);
+  }
+
+  @media (max-width: 560px) {
+    .review-grade-wrap {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>

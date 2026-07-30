@@ -1,0 +1,307 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import TableOfContents from '../components/TableOfContents.astro';
+import CornerFrame from '../components/ornaments/CornerFrame.astro';
+import Medallion from '../components/ornaments/Medallion.astro';
+import PixelIcon from '../components/ornaments/PixelIcon.astro';
+
+interface Crumb {
+  label: string;
+  href?: string;
+}
+
+interface SiblingLink {
+  title: string;
+  href: string;
+}
+
+interface Backlink {
+  title: string;
+  route: string;
+}
+
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  title: string;
+  crumbs: Crumb[];
+  headings: Heading[];
+  status?: 'known' | 'to-learn';
+  prev?: SiblingLink;
+  next?: SiblingLink;
+  backlinks?: Backlink[];
+}
+
+const { title, crumbs, headings, status, prev, next, backlinks } = Astro.props;
+---
+
+<BaseLayout title={title}>
+  <div class="reader-grid">
+    <article class="reader-column">
+      <nav class="breadcrumbs" aria-label="Breadcrumb" data-pagefind-ignore>
+        {crumbs.map((c, i) => (
+          <>
+            {i > 0 && <span class="crumb-sep">/</span>}
+            {c.href ? <a href={c.href}>{c.label}</a> : <span>{c.label}</span>}
+          </>
+        ))}
+      </nav>
+
+      <CornerFrame class="page-leaf">
+        <div class="page-leaf-inner">
+          <header class="reader-header">
+            {status && (
+              <Medallion
+                variant={status}
+                size={40}
+                title={status === 'known' ? 'Already known' : 'To learn'}
+              />
+            )}
+            <h1>{title}</h1>
+            <button
+              id="bookmark-toggle-btn"
+              class="bookmark-toggle"
+              type="button"
+              data-url={Astro.url.pathname}
+              data-title={title}
+              aria-pressed="false"
+              aria-label="Bookmark this note"
+              data-tooltip="Bookmark this note"
+            >
+              <PixelIcon name="star" size={18} />
+            </button>
+          </header>
+          <div class="vault-prose drop-cap">
+            <slot />
+          </div>
+
+          {backlinks && backlinks.length > 0 && (
+            <div class="backlinks-section" data-pagefind-ignore>
+              <p class="backlinks-title font-pixel">
+                <PixelIcon name="branch" size={11} /> Referenced by
+              </p>
+              <ul class="backlinks-list">
+                {backlinks.map((b) => (
+                  <li><a href={b.route}>{b.title}</a></li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </CornerFrame>
+
+      <nav class="leaf-nav" aria-label="Note navigation" data-pagefind-ignore>
+        {prev ? (
+          <a class="leaf-nav-link leaf-nav-prev" href={prev.href}>
+            <span class="leaf-nav-arrow">‹</span>
+            <span>
+              <small>Previous</small>
+              {prev.title}
+            </span>
+          </a>
+        ) : <span />}
+        {next ? (
+          <a class="leaf-nav-link leaf-nav-next" href={next.href}>
+            <span>
+              <small>Next</small>
+              {next.title}
+            </span>
+            <span class="leaf-nav-arrow">›</span>
+          </a>
+        ) : <span />}
+      </nav>
+    </article>
+
+    <aside class="reader-toc" data-pagefind-ignore>
+      <div class="reader-toc-sticky">
+        <TableOfContents headings={headings} />
+      </div>
+    </aside>
+  </div>
+</BaseLayout>
+
+<script>
+  import { isBookmarked, toggleBookmark } from '../lib/bookmarks-client';
+
+  const btn = document.getElementById('bookmark-toggle-btn') as HTMLButtonElement | null;
+  if (btn) {
+    const url = btn.dataset.url ?? '';
+    const title = btn.dataset.title ?? '';
+    const sync = (on: boolean) => btn.setAttribute('aria-pressed', String(on));
+    sync(isBookmarked(url));
+    btn.addEventListener('click', () => sync(toggleBookmark({ url, title })));
+    // Stay in sync if a bookmark is removed elsewhere (e.g. the header panel).
+    document.addEventListener('learnex:bookmarks-changed', () => sync(isBookmarked(url)));
+  }
+</script>
+
+<style>
+  .reader-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    gap: 2.5rem;
+    max-width: 78rem;
+    margin: 0 auto;
+    padding: 1.75rem 2rem 5rem;
+  }
+
+  .breadcrumbs {
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+    margin-bottom: 0.9rem;
+    font-family: var(--font-mono);
+  }
+  .breadcrumbs a {
+    color: var(--ink-faint);
+    border-bottom: none;
+  }
+  .breadcrumbs a:hover {
+    color: var(--accent);
+  }
+  .crumb-sep {
+    margin: 0 0.45rem;
+    color: var(--border-strong);
+  }
+
+  .page-leaf-inner {
+    padding: 3.5rem 2.5rem;
+  }
+
+  .backlinks-section {
+    max-width: 40rem;
+    margin: 2.5rem auto 0;
+    padding-top: 1.75rem;
+    border-top: 1px solid var(--border);
+  }
+  .backlinks-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.6rem;
+    color: var(--brass);
+    letter-spacing: 0.05em;
+    margin: 0 0 0.75rem;
+  }
+  .backlinks-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .backlinks-list a {
+    display: inline-block;
+    padding: 0.35rem 0.7rem;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 0.8rem;
+    color: var(--ink-muted);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .backlinks-list a:hover {
+    color: var(--accent);
+    border-color: var(--brass);
+  }
+
+  .reader-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    max-width: 40rem;
+    margin: 0 auto 1.75rem;
+  }
+  .reader-header h1 {
+    flex: 1;
+    font-size: 2.15rem;
+    line-height: 1.2;
+    margin: 0;
+  }
+  .bookmark-toggle {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--ink-faint);
+    cursor: pointer;
+  }
+  .bookmark-toggle:hover {
+    border-color: var(--brass);
+    color: var(--brass);
+  }
+  .bookmark-toggle[aria-pressed='true'] {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--bg-inset);
+  }
+
+  .leaf-nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    max-width: 46rem;
+    margin: 1.5rem auto 0;
+  }
+  .leaf-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.85rem 1.1rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    text-decoration: none;
+    color: var(--ink);
+    font-family: var(--font-body);
+  }
+  .leaf-nav-link:hover {
+    border-color: var(--brass);
+  }
+  .leaf-nav-link small {
+    display: block;
+    font-family: var(--font-pixel);
+    font-size: 0.58rem;
+    color: var(--ink-faint);
+    margin-bottom: 0.3rem;
+    letter-spacing: 0.03em;
+  }
+  .leaf-nav-prev { justify-self: start; }
+  .leaf-nav-next {
+    grid-column: 2;
+    text-align: right;
+    flex-direction: row-reverse;
+  }
+  .leaf-nav-arrow {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    color: var(--brass);
+  }
+
+  .reader-toc-sticky {
+    position: sticky;
+    top: calc(var(--header-h) + 20px);
+    padding-top: 0.25rem;
+    transition: top 0.32s ease;
+  }
+
+  @media (max-width: 1100px) {
+    .reader-toc { display: none; }
+    .reader-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  @media (max-width: 640px) {
+    .reader-grid { padding: 1.25rem 1rem 3rem; }
+    .page-leaf-inner { padding: 1.75rem 1.35rem; }
+    .reader-header h1 { font-size: 1.5rem; }
+  }
+</style>

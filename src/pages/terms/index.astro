@@ -1,0 +1,124 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import MeanderDivider from '../../components/ornaments/MeanderDivider.astro';
+import PixelIcon from '../../components/ornaments/PixelIcon.astro';
+import { DOMAIN_GROUPS } from '../../lib/domainGroups';
+import { iconForDomain } from '../../lib/pixelIcons';
+import { slugify } from '../../lib/vault';
+
+const terms = await getCollection('terms');
+const notes = terms.filter((t) => !t.data.isMoc);
+
+const domainSlugByName = new Map<string, string>();
+const domainCountByName = new Map<string, number>();
+for (const t of notes) {
+  domainSlugByName.set(t.data.domain, t.data.domainSlug);
+  domainCountByName.set(t.data.domain, (domainCountByName.get(t.data.domain) ?? 0) + 1);
+}
+---
+
+<BaseLayout title="Terms & Knowledge" description="28 domains of software and CS knowledge, indexed.">
+  <div class="terms-index">
+    <header class="terms-hero">
+      <p class="font-pixel terms-kicker">The Archive</p>
+      <h1>Terms &amp; Knowledge</h1>
+      <p class="terms-tagline">{notes.length} terms across {DOMAIN_GROUPS.reduce((s, g) => s + g.domains.length, 0)} domains, grouped the way the vault itself is organized.</p>
+    </header>
+
+    <MeanderDivider class="section-divider" />
+
+    {DOMAIN_GROUPS.map((group) => (
+      <section class="group-block" id={slugify(group.title)}>
+        <h2>{group.title}</h2>
+        <div class="card-grid">
+          {group.domains.map((domain) => {
+            const slug = domainSlugByName.get(domain);
+            const count = domainCountByName.get(domain) ?? 0;
+            return (
+              <a class="domain-card" href={`/terms/${slug}`}>
+                <PixelIcon name={iconForDomain(domain)} size={22} />
+                <span class="domain-card-name">{domain}</span>
+                <span class="domain-card-count">{count} notes</span>
+              </a>
+            );
+          })}
+        </div>
+      </section>
+    ))}
+  </div>
+</BaseLayout>
+
+<style>
+  .terms-index {
+    max-width: 74rem;
+    margin: 0 auto;
+    padding: 2.5rem 2rem 6rem;
+  }
+  .terms-hero {
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+  .terms-kicker {
+    font-size: 0.62rem;
+    color: var(--brass);
+    letter-spacing: 0.08em;
+  }
+  .terms-hero h1 {
+    font-size: 2.4rem;
+    margin: 0.5rem 0 0.75rem;
+  }
+  .terms-tagline {
+    color: var(--ink-muted);
+    max-width: 40rem;
+    margin: 0 auto;
+  }
+  .section-divider {
+    margin: 2rem auto;
+    max-width: 20rem;
+  }
+  .group-block {
+    margin-bottom: 2.5rem;
+    scroll-margin-top: 80px;
+  }
+  .group-block h2 {
+    font-size: 1.05rem;
+    letter-spacing: 0.03em;
+    color: var(--brass);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 0.9rem;
+  }
+  .domain-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem 1.1rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    text-decoration: none;
+    color: var(--ink);
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  .domain-card:hover {
+    border-color: var(--brass);
+    transform: translateY(-2px);
+  }
+  .domain-card :global(.pixel-icon) {
+    color: var(--brass);
+  }
+  .domain-card-name {
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .domain-card-count {
+    font-size: 0.76rem;
+    color: var(--ink-faint);
+  }
+</style>

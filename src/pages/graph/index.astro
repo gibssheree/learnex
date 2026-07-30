@@ -1,0 +1,463 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const LEGEND = [
+  { label: 'Programming Languages', color: '#c9a75c' },
+  { label: 'Core CS Fundamentals', color: '#3a5a8c' },
+  { label: 'Software Engineering & Applied Systems', color: '#8a1526' },
+  { label: 'Toolchain & Delivery', color: '#3f6b52' },
+  { label: 'Product, Design & Emerging Fields', color: '#7c4a2d' },
+  { label: 'Specialized Domains', color: '#5c4a72' },
+];
+---
+
+<BaseLayout title="Knowledge Graph" description="Every note in the archive, connected by its own cross-references.">
+  <div class="graph-page">
+    <header class="graph-header">
+      <p class="font-pixel graph-kicker">The Web</p>
+      <h1>Knowledge Graph</h1>
+      <p class="graph-tagline">
+        Every note in the archive, laid out by its own [[wikilinks]]. Drag to pan, scroll to
+        zoom, hover a note to trace its connections, click to open it.
+      </p>
+    </header>
+
+    <div class="graph-canvas-wrap">
+      <canvas id="graph-canvas" class="graph-canvas"></canvas>
+      <p id="graph-loading" class="graph-loading font-pixel">Arranging the archive…</p>
+      <div id="graph-tooltip" class="graph-tooltip" hidden></div>
+    </div>
+
+    <ul class="graph-legend">
+      {LEGEND.map((g) => (
+        <li>
+          <span class="graph-legend-dot" style={`background:${g.color}`} />
+          {g.label}
+        </li>
+      ))}
+    </ul>
+  </div>
+</BaseLayout>
+
+<script>
+  interface GraphNode {
+    id: string;
+    title: string;
+    group: string;
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    fx: number;
+    fy: number;
+    degree: number;
+  }
+  interface GraphEdge {
+    s: number;
+    t: number;
+  }
+
+  const GROUP_COLORS: Record<string, string> = {
+    'Programming Languages': '#c9a75c',
+    'Core CS Fundamentals': '#3a5a8c',
+    'Software Engineering & Applied Systems': '#8a1526',
+    'Toolchain & Delivery': '#3f6b52',
+    'Product, Design & Emerging Fields': '#7c4a2d',
+    'Specialized Domains': '#5c4a72',
+  };
+
+  const canvas = document.getElementById('graph-canvas') as HTMLCanvasElement | null;
+  const loadingEl = document.getElementById('graph-loading');
+  const tooltipEl = document.getElementById('graph-tooltip') as HTMLDivElement | null;
+  const ctx = canvas?.getContext('2d');
+
+  async function init() {
+    if (!canvas || !ctx) return;
+
+    const res = await fetch('/graph-data.json');
+    const raw: { nodes: { id: string; title: string; group: string }[]; edges: { source: string; target: string }[] } =
+      await res.json();
+
+    const idIndex = new Map(raw.nodes.map((n, i) => [n.id, i]));
+    const nodes: GraphNode[] = raw.nodes.map((n, i) => {
+      // Deterministic sunflower-spiral seed so the layout starts the same way
+      // every visit rather than jittering from run to run.
+      const golden = Math.PI * (3 - Math.sqrt(5));
+      const r = 6 * Math.sqrt(i + 1);
+      const a = i * golden;
+      return {
+        id: n.id,
+        title: n.title,
+        group: n.group,
+        x: Math.cos(a) * r,
+        y: Math.sin(a) * r,
+        vx: 0,
+        vy: 0,
+        fx: 0,
+        fy: 0,
+        degree: 0,
+      };
+    });
+
+    const edges: GraphEdge[] = [];
+    for (const e of raw.edges) {
+      const s = idIndex.get(e.source);
+      const t = idIndex.get(e.target);
+      if (s === undefined || t === undefined) continue;
+      edges.push({ s, t });
+      nodes[s].degree++;
+      nodes[t].degree++;
+    }
+
+    simulate(nodes, edges);
+
+    loadingEl?.setAttribute('hidden', '');
+    setupCanvasAndRender(nodes, edges);
+  }
+
+  function simulate(nodes: GraphNode[], edges: GraphEdge[]) {
+    const n = nodes.length;
+    const area = 900 * 900;
+    const k = Math.sqrt(area / Math.max(n, 1)) * 0.85;
+    const maxSpeed = k * 2;
+    let alpha = 1;
+    const decay = 1 - Math.pow(0.001, 1 / 180);
+
+    for (let iter = 0; iter < 180; iter++) {
+      for (const node of nodes) {
+        node.fx = -node.x * 0.006;
+        node.fy = -node.y * 0.006;
+      }
+
+      for (let i = 0; i < n; i++) {
+        const a = nodes[i];
+        for (let j = i + 1; j < n; j++) {
+          const b = nodes[j];
+          let dx = a.x - b.x;
+          let dy = a.y - b.y;
+          // Floor (not just zero-guard) the distance so two nodes that get very
+          // close can't spike the force toward Infinity and blow up the whole
+          // simulation via NaN contamination.
+          const dist2 = Math.max(dx * dx + dy * dy, 4);
+          const dist = Math.sqrt(dist2);
+          const force = (k * k) / dist2;
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+          a.fx += fx;
+          a.fy += fy;
+          b.fx -= fx;
+          b.fy -= fy;
+        }
+      }
+
+      for (const e of edges) {
+        const a = nodes[e.s];
+        const b = nodes[e.t];
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 0.1);
+        const force = ((dist * dist) / k) * 0.02;
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        a.fx -= fx;
+        a.fy -= fy;
+        b.fx += fx;
+        b.fy += fy;
+      }
+
+      for (const node of nodes) {
+        let vx = (node.vx + node.fx * alpha) * 0.85;
+        let vy = (node.vy + node.fy * alpha) * 0.85;
+        const speed = Math.sqrt(vx * vx + vy * vy);
+        if (speed > maxSpeed) {
+          vx = (vx / speed) * maxSpeed;
+          vy = (vy / speed) * maxSpeed;
+        }
+        node.vx = vx;
+        node.vy = vy;
+        node.x += vx;
+        node.y += vy;
+      }
+
+      alpha *= 1 - decay;
+    }
+  }
+
+  function setupCanvasAndRender(nodes: GraphNode[], edges: GraphEdge[]) {
+    if (!canvas || !ctx) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = canvas.getBoundingClientRect();
+    const W = rect.width || 600;
+    const H = 560;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.height = `${H}px`;
+    ctx.scale(dpr, dpr);
+
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const node of nodes) {
+      minX = Math.min(minX, node.x);
+      maxX = Math.max(maxX, node.x);
+      minY = Math.min(minY, node.y);
+      maxY = Math.max(maxY, node.y);
+    }
+    const bw = maxX - minX || 1;
+    const bh = maxY - minY || 1;
+    const fitScale = Math.min(W / bw, H / bh) * 0.88;
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+
+    const view = {
+      scale: fitScale,
+      tx: W / 2 - cx * fitScale,
+      ty: H / 2 - cy * fitScale,
+    };
+
+    let hovered: GraphNode | null = null;
+
+    function worldToScreen(x: number, y: number) {
+      return [x * view.scale + view.tx, y * view.scale + view.ty] as const;
+    }
+    function screenToWorld(x: number, y: number) {
+      return [(x - view.tx) / view.scale, (y - view.ty) / view.scale] as const;
+    }
+
+    const neighbors = new Set<number>();
+    function computeNeighbors(nodeIdx: number) {
+      neighbors.clear();
+      for (const e of edges) {
+        if (e.s === nodeIdx) neighbors.add(e.t);
+        if (e.t === nodeIdx) neighbors.add(e.s);
+      }
+    }
+
+    function draw() {
+      if (!ctx || !canvas) return;
+      ctx.clearRect(0, 0, W, H);
+
+      const hoveredIdx = hovered ? nodes.indexOf(hovered) : -1;
+
+      ctx.lineWidth = 0.6;
+      for (const e of edges) {
+        const a = nodes[e.s];
+        const b = nodes[e.t];
+        const involved = hoveredIdx !== -1 && (e.s === hoveredIdx || e.t === hoveredIdx);
+        const [ax, ay] = worldToScreen(a.x, a.y);
+        const [bx, by] = worldToScreen(b.x, b.y);
+        ctx.strokeStyle = involved ? 'rgba(201,167,92,0.85)' : 'rgba(150,130,100,0.15)';
+        ctx.lineWidth = involved ? 1.4 : 0.6;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+      }
+
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        const [sx, sy] = worldToScreen(node.x, node.y);
+        if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
+        const r = (1.6 + Math.sqrt(node.degree) * 0.55) * Math.min(1, view.scale / fitScale + 0.3);
+        const dimmed = hoveredIdx !== -1 && i !== hoveredIdx && !neighbors.has(i);
+        ctx.globalAlpha = dimmed ? 0.28 : 1;
+        ctx.fillStyle = GROUP_COLORS[node.group] ?? '#93711f';
+        ctx.beginPath();
+        ctx.arc(sx, sy, Math.max(r, 1.3), 0, Math.PI * 2);
+        ctx.fill();
+        if (i === hoveredIdx) {
+          ctx.strokeStyle = '#ecdfc4';
+          ctx.lineWidth = 1.4;
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    draw();
+
+    // ---- pan / zoom / hover / click ----
+    let dragging = false;
+    let dragMoved = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    canvas.addEventListener('mousedown', (e) => {
+      dragging = true;
+      dragMoved = false;
+      lastX = e.clientX;
+      lastY = e.clientY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      const rect2 = canvas!.getBoundingClientRect();
+      const mx = e.clientX - rect2.left;
+      const my = e.clientY - rect2.top;
+
+      if (dragging) {
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMoved = true;
+        view.tx += dx;
+        view.ty += dy;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        draw();
+        if (tooltipEl) tooltipEl.hidden = true;
+        return;
+      }
+
+      if (mx < 0 || my < 0 || mx > W || my > H) {
+        if (hovered) {
+          hovered = null;
+          if (tooltipEl) tooltipEl.hidden = true;
+          draw();
+        }
+        return;
+      }
+
+      const [wx, wy] = screenToWorld(mx, my);
+      let closest: GraphNode | null = null;
+      let closestDist = Infinity;
+      const threshold = 10 / view.scale;
+      for (const node of nodes) {
+        const dx = node.x - wx;
+        const dy = node.y - wy;
+        const d = dx * dx + dy * dy;
+        if (d < closestDist) {
+          closestDist = d;
+          closest = node;
+        }
+      }
+      const found = closest && closestDist < threshold * threshold ? closest : null;
+
+      if (found !== hovered) {
+        hovered = found;
+        if (found) computeNeighbors(nodes.indexOf(found));
+        draw();
+      }
+
+      if (found && tooltipEl) {
+        tooltipEl.hidden = false;
+        tooltipEl.textContent = found.title;
+        tooltipEl.style.left = `${mx + 14}px`;
+        tooltipEl.style.top = `${my + 10}px`;
+        canvas!.style.cursor = 'pointer';
+      } else if (tooltipEl) {
+        tooltipEl.hidden = true;
+        canvas!.style.cursor = 'grab';
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (dragging && !dragMoved && hovered) {
+        window.location.href = hovered.id;
+      }
+      dragging = false;
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const rect2 = canvas!.getBoundingClientRect();
+      const mx = e.clientX - rect2.left;
+      const my = e.clientY - rect2.top;
+      const [wx, wy] = screenToWorld(mx, my);
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      view.scale = Math.min(Math.max(view.scale * factor, fitScale * 0.3), fitScale * 8);
+      view.tx = mx - wx * view.scale;
+      view.ty = my - wy * view.scale;
+      draw();
+    }, { passive: false });
+  }
+
+  init();
+</script>
+
+<style>
+  .graph-page {
+    max-width: 74rem;
+    margin: 0 auto;
+    padding: 2.5rem 2rem 5rem;
+  }
+  .graph-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+  .graph-kicker {
+    font-size: 0.62rem;
+    color: var(--brass);
+    letter-spacing: 0.08em;
+  }
+  .graph-header h1 {
+    font-size: 2.2rem;
+    margin: 0.5rem 0 0.75rem;
+  }
+  .graph-tagline {
+    max-width: 38rem;
+    margin: 0 auto;
+    color: var(--ink-muted);
+  }
+
+  .graph-canvas-wrap {
+    position: relative;
+    margin-top: 2rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    overflow: hidden;
+  }
+  .graph-canvas {
+    display: block;
+    width: 100%;
+    cursor: grab;
+  }
+  .graph-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.65rem;
+    color: var(--brass);
+    letter-spacing: 0.05em;
+  }
+  .graph-loading[hidden] {
+    display: none;
+  }
+  .graph-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--bg-inset);
+    border: 1px solid var(--brass);
+    border-radius: 3px;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+    color: var(--ink);
+    max-width: 16rem;
+    z-index: 5;
+  }
+
+  .graph-legend {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.9rem 1.5rem;
+    margin: 1.5rem 0 0;
+    padding: 0;
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+  }
+  .graph-legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .graph-legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+</style>

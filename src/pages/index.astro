@@ -1,0 +1,571 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import CornerFrame from '../components/ornaments/CornerFrame.astro';
+import MeanderDivider from '../components/ornaments/MeanderDivider.astro';
+import PixelIcon from '../components/ornaments/PixelIcon.astro';
+import { DOMAIN_GROUPS, LANGUAGE_CATEGORY_ORDER, LANGUAGE_CATEGORY_LABELS } from '../lib/domainGroups';
+
+// Drop a file at public/images/hero.(jpg|jpeg|png|webp) and it appears here
+// automatically on the next build/dev reload — no code change needed.
+const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../public');
+const heroCandidates = ['jpg', 'jpeg', 'png', 'webp'].map((ext) => `images/hero.${ext}`);
+const heroImage = heroCandidates.find((rel) => fs.existsSync(path.join(publicDir, rel)));
+
+const languages = await getCollection('languages');
+const terms = await getCollection('terms');
+
+const languageNotes = languages.filter((l) => !l.data.isMoc);
+const termNotes = terms.filter((t) => !t.data.isMoc);
+const knownCount = languageNotes.filter((l) => l.data.status === 'known').length;
+
+const domainSlugByName = new Map<string, string>();
+const domainCountByName = new Map<string, number>();
+for (const t of termNotes) {
+  domainSlugByName.set(t.data.domain, t.data.domainSlug);
+  domainCountByName.set(t.data.domain, (domainCountByName.get(t.data.domain) ?? 0) + 1);
+}
+
+// Portal-page groupings: same category buckets as /languages, same domain
+// groups as /terms, just rendered as dense inline link-lists here instead of
+// cards — see the .wiki-list-* styles below.
+const languageCategories = LANGUAGE_CATEGORY_ORDER.map((key) => ({
+  key,
+  languages: languageNotes
+    .filter((n) => (n.data.category ?? '') === key)
+    .sort((a, b) => a.data.title.localeCompare(b.data.title)),
+})).filter((c) => c.languages.length > 0);
+
+const totalDomains = DOMAIN_GROUPS.reduce((sum, g) => sum + g.domains.length, 0);
+---
+
+<BaseLayout title="Learnex" description="A classical, illustrated archive built from your own learning vault.">
+  <div class="home">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="font-pixel hero-kicker">A vault, made book</p>
+        <h1 class="hero-title">Learnex</h1>
+        <p class="hero-tagline">
+          Every language and term you've catalogued, bound into one illustrated archive.
+          Read it like a book, browse it like a library, search it like an index.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="/languages">Enter the Hall of Languages</a>
+          <a class="btn btn-secondary" href="/terms/full-stack">Open the Archive</a>
+        </div>
+      </div>
+
+      <div class="hero-figure">
+        <CornerFrame class="hero-figure-frame">
+          {heroImage ? (
+            <img class="hero-figure-img" src={`/${heroImage}`} alt="Classical engraving illustration" />
+          ) : (
+            <div class="hero-figure-placeholder">
+              <p class="font-pixel">Illustration</p>
+              <p>Drop an image at<br /><code>public/images/hero.jpg</code></p>
+            </div>
+          )}
+        </CornerFrame>
+      </div>
+    </section>
+
+    <MeanderDivider class="section-divider" />
+
+    <section class="chapters">
+      <section class="wiki-section">
+        <h2 class="wiki-heading">
+          <PixelIcon name="scroll" size={18} /> Programming Languages
+        </h2>
+        <div class="wiki-lead">
+          <figure class="wiki-lead-figure">
+            <CornerFrame class="wiki-lead-frame">
+              <img
+                class="wiki-lead-img"
+                src="/images/languages-desk.jpg"
+                alt="Classical illustration of a Roman officer with a sword"
+                loading="lazy"
+              />
+            </CornerFrame>
+          </figure>
+
+          <div class="wiki-lead-body">
+            <p class="wiki-lead-text">
+              {languageNotes.length} languages charted across seven paradigms, {knownCount} already
+              known. Browse the <a href="/languages">interactive mind map</a>, or the full catalogue
+              below.
+            </p>
+
+            {languageCategories.map((cat) => (
+              <div class="wiki-list-group">
+                <h3>{LANGUAGE_CATEGORY_LABELS[cat.key] ?? cat.key}</h3>
+                <p class="wiki-list-inline">
+                  {cat.languages.map((lang, i) => (
+                    <>
+                      <a href={`/languages/${lang.data.slug}`}>{lang.data.title}</a>
+                      {lang.data.status === 'known' && (
+                        <i class="known-dot" role="img" aria-label="Already known" data-tooltip="Already known" />
+                      )}
+                      {i < cat.languages.length - 1 ? ', ' : ''}
+                    </>
+                  ))}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section class="wiki-section">
+        <h2 class="wiki-heading">
+          <PixelIcon name="book" size={18} /> Terms &amp; Knowledge
+        </h2>
+        <div class="wiki-lead">
+          <figure class="wiki-lead-figure">
+            <CornerFrame class="wiki-lead-frame">
+              <img
+                class="wiki-lead-img"
+                src="/images/terms-desk.jpg"
+                alt="Classical illustration of a Roman philosopher with a globe"
+                loading="lazy"
+              />
+            </CornerFrame>
+          </figure>
+
+          <div class="wiki-lead-body">
+            <p class="wiki-lead-text">
+              {termNotes.length} terms across {totalDomains} domains, grouped the way the vault itself
+              is organized.
+            </p>
+
+            {DOMAIN_GROUPS.map((group) => (
+              <div class="wiki-list-group">
+                <h3>{group.title}</h3>
+                <p class="wiki-list-inline">
+                  {group.domains.map((domain, i) => {
+                    const slug = domainSlugByName.get(domain);
+                    const count = domainCountByName.get(domain) ?? 0;
+                    return (
+                      <>
+                        <a href={`/terms/${slug}`}>{domain}</a> <span class="wiki-count">({count})</span>
+                        {i < group.domains.length - 1 ? ', ' : ''}
+                      </>
+                    );
+                  })}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      <section class="wiki-section">
+        <h2 class="wiki-heading">
+          <PixelIcon name="sun" size={18} /> Dare to Know
+        </h2>
+
+        <figure class="dare-figure">
+          <CornerFrame class="dare-figure-frame">
+            <img
+              class="dare-figure-img"
+              src="/images/school-of-athens.jpg"
+              alt="Raphael's The School of Athens"
+              loading="lazy"
+            />
+          </CornerFrame>
+          <figcaption>
+            Raphael, <em>The School of Athens</em>. Painted 1509 to 1511 for the room in the
+            Vatican that held the Pope's personal library.
+          </figcaption>
+        </figure>
+
+        <div class="dare-prose">
+          <p>
+            <strong>Sapere aude.</strong> Horace wrote the line around 20 BC in a letter to a
+            friend named Lollius Maximus, who kept postponing the business of living well. The
+            original sentence is blunter than the motto it turned into: he who has begun is half
+            done, so dare to know, and begin.
+          </p>
+          <p>
+            Kant revived it seventeen centuries later. In 1784 a Berlin monthly asked its readers
+            a question, and Kant answered with an essay that defined enlightenment as our escape
+            from an immaturity we had imposed on ourselves. The problem was never a shortage of
+            intelligence, he argued, but a shortage of nerve: the habit of letting a book, a
+            priest, or a physician do our thinking for us. Sapere aude was the two word cure.
+          </p>
+
+          <h3>The room in the painting</h3>
+          <p>
+            Julius II hired Raphael in 1509 to decorate the room where he signed papal documents
+            and shelved his personal library. Raphael was twenty six. He painted the four walls
+            with the four categories those books were sorted into: philosophy, theology, poetry,
+            and law. The School of Athens is the philosophy wall.
+          </p>
+          <p>
+            Nobody in it agrees. Plato carries the Timaeus and raises a finger toward the world
+            of forms. Aristotle carries the Ethics and holds his palm flat above the ground,
+            where he thought the evidence actually lived. Two hands, and the oldest argument in
+            European thought. Around that pair the disagreement continues at lower volume.
+            Pythagoras writes in a ledger and ignores the room. Euclid bends over a compass in
+            the middle of a proof while students crane to follow it. Diogenes sprawls across the
+            steps, unbothered, in everyone's way. Ptolemy and Zoroaster stand to the right
+            holding a terrestrial globe and a celestial one.
+          </p>
+
+          <h3>Faces that do not belong to Athens</h3>
+          <p>
+            Raphael populated the fresco with people he knew. Plato has the face of Leonardo da
+            Vinci, then in his late fifties. Bramante, the architect rebuilding St Peter's
+            nearby, lent his face to Euclid. The heavy figure brooding alone on the steps, elbow
+            propped on a block of marble, was added after everything else was finished. Raphael
+            saw the Sistine ceiling while his own plaster was still drying, went back, and
+            painted Michelangelo into the scene as Heraclitus. Raphael put himself at the far
+            right in a dark hat, looking out at the viewer instead of at the philosophers. He is
+            the youngest man in the room and he is not talking.
+          </p>
+
+          <h3>Why it hangs here</h3>
+          <p>
+            An archive is not a trophy case. A note is worth keeping because it can be corrected,
+            not because it is finished. Every page on this site is a plain markdown file that can
+            be rewritten the moment it turns out to be wrong, which makes the fresco a fair
+            statement of the standard: a room where the best minds available are still arguing,
+            still measuring, still writing things down, and not one of them is done.
+          </p>
+        </div>
+      </section>
+    </section>
+
+    <footer class="home-footer">
+      <MeanderDivider class="section-divider" />
+      <p class="footer-credit">
+        Built and designed by bertlands <span class="footer-sep">|</span>
+        <a href="https://bertlands.me" target="_blank" rel="noopener noreferrer">bertlands.me</a>
+      </p>
+      <p class="footer-rights">&copy; All Rights Reserved</p>
+    </footer>
+  </div>
+</BaseLayout>
+
+<style>
+  .home {
+    max-width: 76rem;
+    margin: 0 auto;
+    padding: 3.5rem 2rem 5rem;
+  }
+
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
+    align-items: center;
+    gap: 3.5rem;
+    margin-bottom: 3rem;
+  }
+  .hero-kicker {
+    font-size: 0.65rem;
+    color: var(--brass);
+    letter-spacing: 0.1em;
+  }
+  .hero-title {
+    font-family: var(--font-deco);
+    text-transform: uppercase;
+    font-size: clamp(3rem, 6vw, 4.75rem);
+    letter-spacing: 0.08em;
+    line-height: 1.05;
+    margin: 0.5rem 0 1.1rem;
+    color: var(--ink);
+  }
+  .hero-tagline {
+    max-width: 32rem;
+    margin: 0 0 1.9rem;
+    color: var(--ink-muted);
+    font-size: 1.1rem;
+    line-height: 1.7;
+  }
+  .hero-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .hero-figure-frame {
+    padding: 0.6rem;
+  }
+  .hero-figure-img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    filter: sepia(0.35) saturate(1.05) contrast(1.03);
+  }
+  :root[data-theme='dark'] .hero-figure-img {
+    filter: sepia(0.25) saturate(0.9) brightness(0.88) contrast(1.05);
+  }
+  .hero-figure-placeholder {
+    aspect-ratio: 3 / 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    text-align: center;
+    color: var(--ink-faint);
+    background: var(--bg-inset);
+    border: 1px dashed var(--border-strong);
+    padding: 1.5rem;
+  }
+  .hero-figure-placeholder p:first-child {
+    font-size: 0.6rem;
+    color: var(--brass);
+    letter-spacing: 0.06em;
+  }
+  .hero-figure-placeholder code {
+    font-size: 0.78rem;
+  }
+
+  @media (max-width: 820px) {
+    .hero {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2rem;
+      text-align: center;
+    }
+    .hero-tagline {
+      margin-inline: auto;
+    }
+    .hero-actions {
+      justify-content: center;
+    }
+    .hero-figure {
+      max-width: 20rem;
+      margin: 0 auto;
+    }
+  }
+  .btn {
+    display: inline-block;
+    padding: 0.7rem 1.5rem;
+    border-radius: 3px;
+    text-decoration: none;
+    font-family: var(--font-display);
+    font-size: 0.82rem;
+    letter-spacing: 0.05em;
+    border: 1px solid var(--border-strong);
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+  }
+  .btn-primary:hover {
+    background: var(--accent-strong);
+    color: var(--accent-ink);
+  }
+  .btn-secondary {
+    color: var(--ink);
+    background: var(--bg-elevated);
+  }
+  .btn-secondary:hover {
+    border-color: var(--brass);
+    color: var(--ink);
+  }
+
+  .section-divider {
+    margin: 2.5rem auto;
+    max-width: 22rem;
+  }
+
+  .chapters {
+    display: flex;
+    flex-direction: column;
+    gap: 4rem;
+  }
+
+  .wiki-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-size: 1.35rem;
+    letter-spacing: 0.03em;
+    color: var(--brass);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.7rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .wiki-lead {
+    display: grid;
+    grid-template-columns: 21rem minmax(0, 1fr);
+    gap: 2.75rem;
+    align-items: start;
+  }
+  .wiki-lead-figure {
+    margin: 0;
+  }
+  .wiki-lead-frame {
+    padding: 0.4rem;
+  }
+  .wiki-lead-img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    filter: sepia(0.3) saturate(1.1) contrast(1.02);
+  }
+  :root[data-theme='dark'] .wiki-lead-img {
+    filter: sepia(0.2) saturate(0.95) brightness(0.87) contrast(1.05);
+  }
+
+  .wiki-lead-text {
+    margin: 0 0 1.9rem;
+    color: var(--ink-muted);
+    font-size: 1.02rem;
+    line-height: 1.7;
+  }
+  .wiki-lead-text a {
+    color: var(--accent);
+  }
+
+  .wiki-list-group {
+    margin-bottom: 1.5rem;
+  }
+  .wiki-list-group:last-child {
+    margin-bottom: 0;
+  }
+  .wiki-list-group h3 {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink);
+    margin: 0 0 0.4rem;
+  }
+  .wiki-list-inline {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.95;
+    color: var(--ink-muted);
+  }
+  .wiki-list-inline a {
+    color: var(--ink);
+    border-bottom: 1px solid var(--brass-soft);
+    text-decoration: none;
+  }
+  .wiki-list-inline a:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .wiki-count {
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+  }
+  .known-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--brass);
+    margin: 0 0.05rem 0 0.2rem;
+    vertical-align: middle;
+  }
+
+  @media (max-width: 760px) {
+    .wiki-lead {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .wiki-lead-figure {
+      max-width: 17rem;
+      margin: 0 auto 1.75rem;
+    }
+  }
+
+  /* ---------- Dare to Know ---------- */
+
+  .dare-figure {
+    margin: 0 0 2.25rem;
+  }
+  .dare-figure-frame {
+    padding: 0.5rem;
+  }
+  /* No aspect-ratio crop here: this one is a full painting rather than a
+     decorative plate, so it keeps its own proportions at full width. */
+  .dare-figure-img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    filter: sepia(0.3) saturate(1.1) contrast(1.02);
+  }
+  :root[data-theme='dark'] .dare-figure-img {
+    filter: sepia(0.2) saturate(0.95) brightness(0.87) contrast(1.05);
+  }
+  .dare-figure figcaption {
+    text-align: center;
+    margin-top: 0.9rem;
+    font-size: 0.82rem;
+    font-style: italic;
+    color: var(--ink-faint);
+  }
+
+  .dare-prose p {
+    margin: 0 0 1.15rem;
+    color: var(--ink-muted);
+    font-size: 1.02rem;
+    line-height: 1.8;
+    text-align: justify;
+    text-justify: inter-word;
+    hyphens: auto;
+  }
+  .dare-prose p:first-child::first-letter {
+    font-family: var(--font-deco);
+    font-size: 3.1em;
+    line-height: 0.82;
+    float: left;
+    padding: 0.06em 0.1em 0 0;
+    color: var(--accent);
+  }
+  .dare-prose strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  /* Matches the h2 treatment inside .vault-prose (global.css) so this article
+     reads with the same section rhythm as an actual note page. */
+  .dare-prose h3 {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--brass);
+    margin: 2.4rem 0 0.95rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .home-footer {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.85rem;
+    margin-top: 3.5rem;
+  }
+  .footer-credit {
+    margin: 1.9rem 0 0.4rem;
+  }
+  .footer-credit a {
+    color: var(--brass);
+    border-bottom: 1px solid var(--brass-soft);
+    text-decoration: none;
+  }
+  .footer-credit a:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .footer-sep {
+    margin: 0 0.35rem;
+    color: var(--border-strong);
+  }
+  .footer-rights {
+    margin: 0;
+    font-size: 0.76rem;
+    letter-spacing: 0.03em;
+  }
+</style>

@@ -1,0 +1,387 @@
+---
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import Sidebar from '../components/Sidebar.astro';
+import PixelIcon from '../components/ornaments/PixelIcon.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'Learnex — a classical, illustrated archive for learning to code.' } =
+  Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <title>{title === 'Learnex' ? title : `${title} · Learnex`}</title>
+    <script is:inline>
+      (function () {
+        try {
+          var theme = localStorage.getItem('learnex-theme');
+          if (theme === 'light' || theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', theme);
+          }
+          var textSize = localStorage.getItem('learnex-text-size');
+          if (textSize === 'sm' || textSize === 'lg') {
+            document.documentElement.setAttribute('data-text-size', textSize);
+          }
+          if (localStorage.getItem('learnex-crt') === 'on') {
+            document.documentElement.setAttribute('data-crt', 'on');
+          }
+          if (localStorage.getItem('learnex-sidebar') === 'collapsed') {
+            document.documentElement.setAttribute('data-sidebar', 'collapsed');
+          }
+          if (localStorage.getItem('learnex-navbar') === 'hidden') {
+            document.documentElement.setAttribute('data-navbar', 'hidden');
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <Header />
+    <div class="shell">
+      <aside id="sidebar-aside" class="sidebar-aside">
+        <a class="sidebar-wordmark" href="/">
+          <img class="sidebar-wordmark-logo" src="/images/learnex.png" alt="" width="37" height="44" />
+          <span class="sidebar-wordmark-text">Learnex</span>
+        </a>
+        <Sidebar />
+      </aside>
+      <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+      <button
+        id="sidebar-collapse-btn"
+        class="sidebar-collapse-btn"
+        type="button"
+        aria-label="Collapse sidebar"
+        aria-expanded="true"
+        data-tooltip="Collapse sidebar"
+        data-tooltip-pos="bottom"
+      >
+        <span class="sidebar-collapse-icon">‹</span>
+      </button>
+      <button
+        id="navbar-show-btn"
+        class="navbar-show-btn"
+        type="button"
+        aria-label="Show navbar"
+        aria-expanded="false"
+        data-tooltip="Show navbar"
+        data-tooltip-pos="bottom"
+      >
+        <PixelIcon name="chevronUp" size={12} class="navbar-show-icon" />
+      </button>
+      <main class="main-content" data-pagefind-body>
+        <slot />
+      </main>
+    </div>
+
+    <script>
+      const toggle = document.getElementById('mobile-nav-toggle');
+      const aside = document.getElementById('sidebar-aside');
+      const backdrop = document.getElementById('sidebar-backdrop');
+
+      function close() {
+        aside?.classList.remove('open');
+        backdrop?.classList.remove('open');
+        toggle?.setAttribute('aria-expanded', 'false');
+      }
+
+      toggle?.addEventListener('click', () => {
+        const isOpen = aside?.classList.toggle('open');
+        backdrop?.classList.toggle('open', !!isOpen);
+        toggle.setAttribute('aria-expanded', String(!!isOpen));
+      });
+
+      backdrop?.addEventListener('click', close);
+
+      const collapseBtn = document.getElementById('sidebar-collapse-btn');
+      const SIDEBAR_KEY = 'learnex-sidebar';
+      const root = document.documentElement;
+
+      function syncCollapseBtn() {
+        const collapsed = root.getAttribute('data-sidebar') === 'collapsed';
+        collapseBtn?.setAttribute('aria-expanded', String(!collapsed));
+        collapseBtn?.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+        collapseBtn?.setAttribute('data-tooltip', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+      }
+      syncCollapseBtn();
+
+      collapseBtn?.addEventListener('click', () => {
+        const collapsed = root.getAttribute('data-sidebar') === 'collapsed';
+        if (collapsed) {
+          root.removeAttribute('data-sidebar');
+          localStorage.removeItem(SIDEBAR_KEY);
+        } else {
+          root.setAttribute('data-sidebar', 'collapsed');
+          localStorage.setItem(SIDEBAR_KEY, 'collapsed');
+        }
+        syncCollapseBtn();
+      });
+
+      // ---------- Navbar hide/show ----------
+      // The header collapsing and the sidebar wordmark fading in are both
+      // plain CSS transitions reacting to the same [data-navbar] attribute
+      // flip, so they play in sync without any JS-driven animation here.
+      const NAVBAR_KEY = 'learnex-navbar';
+      const navbarHideBtn = document.getElementById('navbar-hide-btn');
+      const navbarShowBtn = document.getElementById('navbar-show-btn');
+
+      function setNavbarHidden(hidden: boolean) {
+        if (hidden) {
+          root.setAttribute('data-navbar', 'hidden');
+        } else {
+          root.removeAttribute('data-navbar');
+        }
+        if (hidden) {
+          localStorage.setItem(NAVBAR_KEY, 'hidden');
+        } else {
+          localStorage.removeItem(NAVBAR_KEY);
+        }
+        navbarHideBtn?.setAttribute('aria-pressed', String(hidden));
+        navbarShowBtn?.setAttribute('aria-expanded', String(hidden));
+      }
+
+      navbarHideBtn?.addEventListener('click', () => setNavbarHidden(true));
+      navbarShowBtn?.addEventListener('click', () => setNavbarHidden(false));
+      navbarShowBtn?.setAttribute('aria-expanded', String(root.getAttribute('data-navbar') === 'hidden'));
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    align-items: start;
+    transition: grid-template-columns 0.2s ease;
+  }
+
+  .sidebar-aside {
+    position: sticky;
+    top: var(--header-h);
+    height: calc(100vh - var(--header-h));
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-right: 1px solid var(--border);
+    padding: 1rem 1.1rem;
+    background: var(--bg);
+    transition: opacity 0.15s ease, top 0.32s ease, height 0.32s ease;
+  }
+
+  /* Navbar hide/show — see the .site-header rules in Header.astro for how the
+     header itself collapses. This just makes --header-h track it so the
+     sidebar (and, in ReaderLayout, the sticky table of contents) slide up to
+     reclaim the exact same space at the exact same time. */
+  :root[data-navbar='hidden'] {
+    --header-h: 0px;
+  }
+
+  /* Collapsed by default via max-height + overflow (not display: none, which
+     can't be transitioned) so it reserves no space in the sidebar until the
+     navbar is actually hidden, then fades/settles in over the same window
+     the header takes to collapse — see .wordmark's own fade-out in
+     Header.astro for the other half of this. */
+  .sidebar-wordmark {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--ink);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0 -1.1rem 0;
+    padding: 0 1.1rem;
+    background: var(--bg);
+    border-bottom: 1px solid transparent;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transition: max-height 0.32s ease, opacity 0.2s ease, padding 0.32s ease,
+      border-color 0.32s ease, margin-bottom 0.32s ease;
+  }
+  .sidebar-wordmark-logo {
+    display: block;
+    height: 44px;
+    width: auto;
+    flex-shrink: 0;
+    /* Same optical nudge as .wordmark-logo in Header.astro, which uses the
+       same source image — the art itself isn't vertically centered in its
+       own bounding box, so align-items: center alone leaves it looking low. */
+    transform: translateY(-3px);
+  }
+  .sidebar-wordmark-text {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  :root[data-navbar='hidden'] .sidebar-wordmark {
+    max-height: 96px;
+    opacity: 1;
+    padding: 1rem 1.1rem;
+    border-bottom-color: var(--border);
+    margin-bottom: 0.5rem;
+    pointer-events: auto;
+    transition: max-height 0.32s ease, opacity 0.28s ease 0.1s, padding 0.32s ease,
+      border-color 0.32s ease, margin-bottom 0.32s ease;
+  }
+
+  .navbar-show-btn {
+    position: fixed;
+    top: 10px;
+    right: 24px;
+    z-index: 45;
+    width: 30px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    color: var(--brass);
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-6px);
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s, border-color 0.15s ease;
+  }
+  .navbar-show-btn:hover {
+    border-color: var(--brass);
+  }
+  .navbar-show-icon {
+    /* Reuses #navbar-hide-btn's chevronUp icon (see Header.astro), flipped to
+       point down — "pull this back down" as the opposite of "collapse up". */
+    transform: rotate(180deg);
+  }
+  :root[data-navbar='hidden'] .navbar-show-btn {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    transition: opacity 0.2s ease 0.15s, transform 0.2s ease 0.15s, visibility 0s, border-color 0.15s ease;
+  }
+
+  /* This button sits only 24px from the right edge of the viewport, so the
+     default [data-tooltip] system (centered on the trigger, see global.css)
+     would push "Show navbar" half off-screen. Anchor the tooltip box to the
+     button's right edge instead — its little arrow stays centered as-is,
+     since it still needs to point at the button itself. */
+  #navbar-show-btn[data-tooltip]::after {
+    left: auto;
+    right: 0;
+    transform: translateY(-4px);
+  }
+  #navbar-show-btn[data-tooltip]:hover::after,
+  #navbar-show-btn[data-tooltip]:focus-visible::after {
+    transform: translateY(0);
+  }
+
+  /* Desktop-only collapse — scoped above the mobile breakpoint so a collapsed
+     state saved from a desktop session never hides the mobile off-canvas
+     drawer (which uses its own transform-based open/close). */
+  @media (min-width: 881px) {
+    :root[data-sidebar='collapsed'] .shell {
+      grid-template-columns: 0px minmax(0, 1fr);
+    }
+    :root[data-sidebar='collapsed'] .sidebar-aside {
+      padding: 0;
+      border-right: none;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+  }
+
+  .sidebar-collapse-btn {
+    position: fixed;
+    top: calc(var(--header-h) + 16px);
+    left: 280px;
+    transform: translateX(-50%);
+    z-index: 45;
+    width: 22px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    color: var(--brass);
+    cursor: pointer;
+    transition: left 0.2s ease, border-color 0.15s ease;
+  }
+  .sidebar-collapse-btn:hover {
+    border-color: var(--brass);
+  }
+  .sidebar-collapse-icon {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    line-height: 1;
+    transition: transform 0.2s ease;
+  }
+  :root[data-sidebar='collapsed'] .sidebar-collapse-btn {
+    left: 0px;
+  }
+  :root[data-sidebar='collapsed'] .sidebar-collapse-icon {
+    transform: rotate(180deg);
+  }
+
+  .main-content {
+    min-width: 0;
+  }
+
+  .sidebar-backdrop {
+    display: none;
+  }
+
+  @media (max-width: 880px) {
+    .sidebar-collapse-btn {
+      display: none;
+    }
+    .shell {
+      grid-template-columns: 1fr;
+    }
+    .sidebar-aside {
+      position: fixed;
+      top: var(--header-h);
+      left: 0;
+      bottom: 0;
+      width: 280px;
+      max-width: 82vw;
+      transform: translateX(-100%);
+      transition: transform 0.2s ease;
+      z-index: 60;
+      box-shadow: 6px 0 24px hsl(var(--shadow-color) / 0.4);
+    }
+    .sidebar-aside.open {
+      transform: translateX(0);
+    }
+    .sidebar-backdrop.open {
+      display: block;
+      position: fixed;
+      inset: var(--header-h) 0 0 0;
+      background: hsl(var(--shadow-color) / 0.45);
+      z-index: 50;
+    }
+  }
+</style>

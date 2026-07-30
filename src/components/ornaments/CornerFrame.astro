@@ -1,0 +1,59 @@
+---
+interface Props {
+  class?: string;
+}
+const { class: className } = Astro.props;
+---
+
+<div class:list={['corner-frame', className]}>
+  <svg class="corner corner--tl" viewBox="0 0 32 32" aria-hidden="true">
+    <path d="M2 22V8a6 6 0 0 1 6-6h14" fill="none" stroke="currentColor" stroke-width="1.6" />
+    <circle cx="8" cy="8" r="1.6" fill="currentColor" />
+  </svg>
+  <svg class="corner corner--tr" viewBox="0 0 32 32" aria-hidden="true">
+    <path d="M2 22V8a6 6 0 0 1 6-6h14" fill="none" stroke="currentColor" stroke-width="1.6" />
+    <circle cx="8" cy="8" r="1.6" fill="currentColor" />
+  </svg>
+  <svg class="corner corner--bl" viewBox="0 0 32 32" aria-hidden="true">
+    <path d="M2 22V8a6 6 0 0 1 6-6h14" fill="none" stroke="currentColor" stroke-width="1.6" />
+    <circle cx="8" cy="8" r="1.6" fill="currentColor" />
+  </svg>
+  <svg class="corner corner--br" viewBox="0 0 32 32" aria-hidden="true">
+    <path d="M2 22V8a6 6 0 0 1 6-6h14" fill="none" stroke="currentColor" stroke-width="1.6" />
+    <circle cx="8" cy="8" r="1.6" fill="currentColor" />
+  </svg>
+  <slot />
+</div>
+
+<style>
+  .corner-frame {
+    position: relative;
+  }
+  .corner {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    color: var(--brass);
+    pointer-events: none;
+    opacity: 0.85;
+  }
+  .corner--tl {
+    top: -1px;
+    left: -1px;
+  }
+  .corner--tr {
+    top: -1px;
+    right: -1px;
+    transform: scaleX(-1);
+  }
+  .corner--bl {
+    bottom: -1px;
+    left: -1px;
+    transform: scaleY(-1);
+  }
+  .corner--br {
+    bottom: -1px;
+    right: -1px;
+    transform: scale(-1, -1);
+  }
+</style>

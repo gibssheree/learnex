@@ -1,0 +1,58 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Medallion from '../components/ornaments/Medallion.astro';
+import MeanderDivider from '../components/ornaments/MeanderDivider.astro';
+---
+
+<BaseLayout title="Page Not Found">
+  <div class="not-found">
+    <Medallion variant="to-learn" size={64} title="Missing page" />
+    <p class="font-pixel kicker">Folio Missing</p>
+    <h1>This page was never bound into the archive.</h1>
+    <p class="tagline">The note or chapter you're looking for doesn't exist — or moved.</p>
+    <MeanderDivider class="divider" />
+    <a class="btn" href="/">Return to the hall</a>
+  </div>
+</BaseLayout>
+
+<style>
+  .not-found {
+    max-width: 34rem;
+    margin: 6rem auto;
+    padding: 0 2rem;
+    text-align: center;
+  }
+  .kicker {
+    font-size: 0.62rem;
+    color: var(--brass);
+    letter-spacing: 0.08em;
+    margin-top: 1.25rem;
+  }
+  h1 {
+    font-size: 1.7rem;
+    margin: 0.6rem 0 0.75rem;
+  }
+  .tagline {
+    color: var(--ink-muted);
+  }
+  .divider {
+    margin: 2rem auto;
+    max-width: 14rem;
+  }
+  .btn {
+    display: inline-block;
+    padding: 0.65rem 1.4rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    text-decoration: none;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+  }
+  .btn:hover {
+    background: var(--accent-strong);
+    color: var(--accent-ink);
+  }
+</style>

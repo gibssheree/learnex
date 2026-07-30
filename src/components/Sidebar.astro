@@ -1,0 +1,202 @@
+---
+import { getCollection, type CollectionEntry } from 'astro:content';
+import { DOMAIN_GROUPS, LANGUAGE_CATEGORY_ORDER, LANGUAGE_CATEGORY_LABELS } from '../lib/domainGroups';
+import { iconForDomain } from '../lib/pixelIcons';
+import PixelIcon from './ornaments/PixelIcon.astro';
+
+const terms = await getCollection('terms');
+const languages = await getCollection('languages');
+
+const domainSlugByName = new Map<string, string>();
+for (const t of terms) domainSlugByName.set(t.data.domain, t.data.domainSlug);
+
+const languagesByCategory = new Map<string, CollectionEntry<'languages'>[]>();
+for (const l of languages) {
+  if (l.data.isMoc) continue;
+  const cat = l.data.category ?? 'Niche';
+  if (!languagesByCategory.has(cat)) languagesByCategory.set(cat, []);
+  languagesByCategory.get(cat)!.push(l);
+}
+for (const list of languagesByCategory.values()) {
+  list.sort((a, b) => a.data.title.localeCompare(b.data.title));
+}
+
+const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
+const isActive = (href: string) => currentPath === href;
+const inLanguages = currentPath.startsWith('/languages');
+const inTerms = currentPath.startsWith('/terms');
+---
+
+<nav class="sidebar" aria-label="Primary">
+  <details class="nav-group" open={inLanguages || !inTerms}>
+    <summary><PixelIcon name="scroll" size={15} /> <span>Programming Languages</span></summary>
+    <div class="nav-group-body">
+      <a class="nav-hub-link" href="/languages" aria-current={isActive('/languages') ? 'page' : undefined}>
+        Overview &amp; Mind Map
+      </a>
+      {LANGUAGE_CATEGORY_ORDER.map((cat) => (
+        <details class="nav-subgroup">
+          <summary>{LANGUAGE_CATEGORY_LABELS[cat]}</summary>
+          <ul>
+            {(languagesByCategory.get(cat) ?? []).map((l) => {
+              const href = `/languages/${l.data.slug}`;
+              return (
+                <li>
+                  <a href={href} aria-current={isActive(href) ? 'page' : undefined}>
+                    {l.data.title}
+                    {l.data.status === 'known' && (
+                      <i class="known-dot" role="img" aria-label="Already known" data-tooltip="Already known" />
+                    )}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      ))}
+    </div>
+  </details>
+
+  <details class="nav-group" open={inTerms}>
+    <summary><PixelIcon name="book" size={15} /> <span>Terms &amp; Knowledge</span></summary>
+    <div class="nav-group-body">
+      {DOMAIN_GROUPS.map((group) => (
+        <details class="nav-subgroup">
+          <summary>{group.title}</summary>
+          <ul>
+            {group.domains.map((domain) => {
+              const slug = domainSlugByName.get(domain);
+              const href = `/terms/${slug}`;
+              return (
+                <li>
+                  <a href={href} aria-current={isActive(href) ? 'page' : undefined}>
+                    <PixelIcon name={iconForDomain(domain)} size={13} />
+                    <span>{domain}</span>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      ))}
+    </div>
+  </details>
+</nav>
+
+<style>
+  .sidebar {
+    font-size: 0.86rem;
+    padding-bottom: 3rem;
+  }
+
+  summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .nav-group {
+    border-bottom: 1px solid var(--border);
+    padding: 0.15rem 0;
+  }
+  .nav-group > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.25rem;
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  .nav-group > summary::before {
+    content: '';
+    width: 0;
+    height: 0;
+    border-left: 4px solid var(--brass);
+    border-top: 3px solid transparent;
+    border-bottom: 3px solid transparent;
+    transition: transform 0.15s ease;
+    flex-shrink: 0;
+  }
+  .nav-group[open] > summary::before {
+    transform: rotate(90deg);
+  }
+
+  .nav-group-body {
+    padding: 0.15rem 0 0.6rem 0.4rem;
+  }
+
+  .nav-hub-link {
+    display: block;
+    padding: 0.35rem 0.5rem;
+    margin-bottom: 0.25rem;
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: none;
+  }
+  .nav-hub-link:hover {
+    text-decoration: underline;
+  }
+
+  .nav-subgroup {
+    margin-left: 0.15rem;
+  }
+  .nav-subgroup > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.32rem 0.5rem;
+    color: var(--ink-muted);
+    font-size: 0.78rem;
+  }
+  .nav-subgroup > summary::before {
+    content: '›';
+    display: inline-block;
+    width: 0.7em;
+    color: var(--brass);
+    transition: transform 0.15s ease;
+  }
+  .nav-subgroup[open] > summary::before {
+    transform: rotate(90deg);
+  }
+
+  .nav-subgroup ul {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0.4rem 1.4rem;
+  }
+  .nav-subgroup a {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.28rem 0.4rem;
+    border-radius: 3px;
+    color: var(--ink-muted);
+    text-decoration: none;
+    border-bottom: none;
+    line-height: 1.3;
+  }
+  .nav-subgroup a:hover {
+    background: var(--bg-inset);
+    color: var(--ink);
+  }
+  .nav-subgroup a[aria-current='page'] {
+    background: var(--bg-inset);
+    color: var(--accent);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+
+  .known-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--brass);
+    flex-shrink: 0;
+  }
+</style>

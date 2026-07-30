@@ -1,0 +1,74 @@
+---
+interface Props {
+  variant?: 'known' | 'to-learn' | 'plain';
+  size?: number;
+  title?: string;
+  class?: string;
+}
+
+const { variant = 'plain', size = 34, title, class: className } = Astro.props;
+
+const TICK_COUNT = 28;
+const ticks = Array.from({ length: TICK_COUNT }, (_, i) => {
+  const angle = (i / TICK_COUNT) * Math.PI * 2;
+  const r1 = 17.2;
+  const r2 = 19;
+  return {
+    x1: 20 + r1 * Math.cos(angle),
+    y1: 20 + r1 * Math.sin(angle),
+    x2: 20 + r2 * Math.cos(angle),
+    y2: 20 + r2 * Math.sin(angle),
+  };
+});
+---
+
+<span class:list={['medallion-wrap', className]} data-tooltip={title}>
+<svg
+  width={size}
+  height={size}
+  viewBox="0 0 40 40"
+  class:list={['medallion', `medallion--${variant}`]}
+  role="img"
+  aria-label={title}
+>
+  {ticks.map((t) => (
+    <line x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} stroke="currentColor" stroke-width="0.6" />
+  ))}
+  <circle cx="20" cy="20" r="16.5" fill="none" stroke="currentColor" stroke-width="1.4" />
+  <circle cx="20" cy="20" r="12.6" fill="none" stroke="currentColor" stroke-width="0.6" />
+  {variant === 'known' ? (
+    <path
+      d="M13 20.5 L17.5 25 L27 14.5"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.1"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  ) : (
+    <path
+      d="M20 12 L22 17.6 L28 17.6 L23.2 21.2 L25 27 L20 23.4 L15 27 L16.8 21.2 L12 17.6 L18 17.6 Z"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1"
+      stroke-linejoin="round"
+    />
+  )}
+</svg>
+</span>
+
+<style>
+  .medallion-wrap {
+    display: inline-flex;
+    line-height: 0;
+  }
+  .medallion--known {
+    color: var(--accent);
+  }
+  .medallion--to-learn {
+    color: var(--ink-faint);
+  }
+  .medallion--plain {
+    color: var(--brass);
+  }
+</style>

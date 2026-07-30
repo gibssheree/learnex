@@ -1,0 +1,748 @@
+---
+import PixelIcon from './ornaments/PixelIcon.astro';
+import NavbarScene from './NavbarScene.astro';
+---
+
+<header class="site-header">
+  <div class="site-header-row">
+    <button id="mobile-nav-toggle" class="mobile-nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <a class="wordmark" href="/">
+      <img class="wordmark-logo" src="/images/learnex.png" alt="" width="37" height="44" />
+      <span class="wordmark-text">Learnex</span>
+    </a>
+
+    <div class="search-slot">
+      <PixelIcon name="search" size={13} class="search-icon" />
+      <input
+        id="site-search-input"
+        class="search-input"
+        type="search"
+        placeholder="Search the archive…"
+        aria-label="Search"
+      />
+      <kbd class="search-kbd">/</kbd>
+      <div id="search" class="search-results"></div>
+    </div>
+
+    <div class="toolbar-group">
+      <a href="/graph" class="tool-btn" aria-label="Knowledge graph" data-tooltip="Knowledge graph — every note, connected" data-tooltip-pos="bottom">
+        <PixelIcon name="graph" size={16} />
+      </a>
+
+      <a href="/review" class="tool-btn" aria-label="Flashcard review" data-tooltip="Review flashcards" data-tooltip-pos="bottom">
+        <PixelIcon name="check" size={16} />
+      </a>
+
+      <button id="random-note-btn" class="tool-btn" type="button" aria-label="Open a random note" data-tooltip="Surprise me — random note" data-tooltip-pos="bottom">
+        <PixelIcon name="dice" size={16} />
+      </button>
+
+      <div class="tool-popover-wrap">
+        <button
+          id="bookmarks-btn"
+          class="tool-btn"
+          type="button"
+          aria-label="Bookmarks"
+          aria-expanded="false"
+          data-tooltip="Your bookmarked notes"
+          data-tooltip-pos="bottom"
+        >
+          <PixelIcon name="star" size={16} />
+          <span id="bookmarks-count" class="tool-badge" hidden>0</span>
+        </button>
+        <div id="bookmarks-panel" class="tool-panel" hidden>
+          <p class="tool-panel-title font-pixel">Bookmarks</p>
+          <div id="bookmarks-list" class="tool-panel-list"></div>
+        </div>
+      </div>
+
+      <div class="tool-popover-wrap">
+        <button
+          id="text-size-btn"
+          class="tool-btn tool-btn-text"
+          type="button"
+          aria-label="Text size"
+          aria-expanded="false"
+          data-tooltip="Reading text size"
+          data-tooltip-pos="bottom"
+        >
+          Aa
+        </button>
+        <div id="text-size-panel" class="tool-panel tool-panel-narrow" hidden>
+          <button class="text-size-option" data-size="sm">Small</button>
+          <button class="text-size-option" data-size="md">Medium</button>
+          <button class="text-size-option" data-size="lg">Large</button>
+        </div>
+      </div>
+
+      <button
+        id="crt-toggle-btn"
+        class="tool-btn"
+        type="button"
+        aria-label="Toggle retro CRT mode"
+        aria-pressed="false"
+        data-tooltip="Retro CRT mode"
+        data-tooltip-pos="bottom"
+      >
+        <PixelIcon name="tv" size={16} />
+      </button>
+
+      <button
+        id="navbar-hide-btn"
+        class="tool-btn"
+        type="button"
+        aria-label="Hide navbar"
+        aria-pressed="false"
+        data-tooltip="Hide navbar"
+        data-tooltip-pos="bottom"
+      >
+        <PixelIcon name="chevronUp" size={14} />
+      </button>
+    </div>
+
+    <p class="latin-motto" data-tooltip="Dare to know" data-tooltip-pos="bottom">Sapere Aude</p>
+
+    <button
+      id="theme-toggle"
+      class="theme-toggle"
+      type="button"
+      aria-label="Switch between cream and dark reading mode"
+      data-tooltip="Cream / Dark reading mode"
+      data-tooltip-pos="bottom"
+    >
+      <PixelIcon name="sun" size={16} class="icon-sun" />
+      <PixelIcon name="moon" size={16} class="icon-moon" />
+    </button>
+
+    <a href="/about" class="tool-btn about-btn" aria-label="About Learnex" data-tooltip="About Learnex" data-tooltip-pos="bottom">
+      <PixelIcon name="info" size={16} />
+    </a>
+
+    <NavbarScene />
+  </div>
+</header>
+
+<script>
+  import { getBookmarks, removeBookmark } from '../lib/bookmarks-client';
+
+  const KEY = 'learnex-theme';
+  const root = document.documentElement;
+  const btn = document.getElementById('theme-toggle');
+
+  function apply(theme: string) {
+    if (theme === 'light' || theme === 'dark') {
+      root.setAttribute('data-theme', theme);
+    } else {
+      root.removeAttribute('data-theme');
+    }
+  }
+
+  btn?.addEventListener('click', () => {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const current = root.getAttribute('data-theme') ?? (prefersDark ? 'dark' : 'light');
+    const next = current === 'dark' ? 'light' : 'dark';
+    apply(next);
+    localStorage.setItem(KEY, next);
+  });
+
+  const input = document.getElementById('site-search-input') as HTMLInputElement | null;
+  const resultsEl = document.getElementById('search');
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && document.activeElement !== input) {
+      e.preventDefault();
+      input?.focus();
+    }
+    if (e.key === 'Escape' && document.activeElement === input) {
+      input?.blur();
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest?.('.search-slot') && resultsEl) {
+      resultsEl.innerHTML = '';
+    }
+  });
+
+  type PagefindModule = {
+    init?: () => void;
+    search: (q: string) => Promise<{ results: { data: () => Promise<PagefindResult> }[] }>;
+  };
+  type PagefindResult = { url: string; excerpt: string; meta?: { title?: string } };
+
+  // Loaded via the Function constructor so Vite never sees a static `import(...)`
+  // to analyze/preload-wrap — /pagefind/pagefind.js only exists after the
+  // production build (generated by the postbuild pagefind CLI step), so any
+  // build-time handling of this specifier is both impossible and undesired.
+  const dynamicImport = new Function('specifier', 'return import(specifier)') as (
+    specifier: string,
+  ) => Promise<PagefindModule>;
+
+  let pagefindPromise: Promise<PagefindModule | null> | null = null;
+  function getPagefind(): Promise<PagefindModule | null> {
+    if (!pagefindPromise) {
+      pagefindPromise = dynamicImport('/pagefind/pagefind.js')
+        .then((mod) => {
+          mod.init?.();
+          return mod;
+        })
+        .catch(() => null);
+    }
+    return pagefindPromise;
+  }
+
+  async function runSearch(query: string) {
+    if (!resultsEl) return;
+    const pagefind = await getPagefind();
+    if (!pagefind) {
+      resultsEl.innerHTML =
+        '<p class="search-empty">Search is available once Learnex is built for production (<code>npm run build</code>).</p>';
+      return;
+    }
+    const search = await pagefind.search(query);
+    const items = await Promise.all(search.results.slice(0, 8).map((r) => r.data()));
+    if (!items.length) {
+      resultsEl.innerHTML = '<p class="search-empty">No matches in the archive.</p>';
+      return;
+    }
+    resultsEl.innerHTML = items
+      .map(
+        (item) => `
+        <a class="search-result" href="${item.url}">
+          <span class="search-result-title">${item.meta?.title ?? item.url}</span>
+          <span class="search-result-excerpt">${item.excerpt}</span>
+        </a>`,
+      )
+      .join('');
+  }
+
+  let debounceTimer: number | undefined;
+  input?.addEventListener('input', () => {
+    window.clearTimeout(debounceTimer);
+    const value = input.value.trim();
+    if (!resultsEl) return;
+    if (!value) {
+      resultsEl.innerHTML = '';
+      return;
+    }
+    debounceTimer = window.setTimeout(() => runSearch(value), 150);
+  });
+
+  // ---------- Random note ----------
+  let randomIndexPromise: Promise<{ title: string; url: string }[]> | null = null;
+  function getRandomIndex() {
+    if (!randomIndexPromise) {
+      randomIndexPromise = fetch('/random-index.json')
+        .then((r) => r.json())
+        .catch(() => []);
+    }
+    return randomIndexPromise;
+  }
+  document.getElementById('random-note-btn')?.addEventListener('click', async () => {
+    const list = await getRandomIndex();
+    if (!list.length) return;
+    const pick = list[Math.floor(Math.random() * list.length)];
+    window.location.href = pick.url;
+  });
+
+  // ---------- Popovers (bookmarks + text size) ----------
+  const popovers: { btn: HTMLElement; panel: HTMLElement }[] = [];
+  function registerPopover(btnId: string, panelId: string) {
+    const b = document.getElementById(btnId);
+    const p = document.getElementById(panelId);
+    if (!b || !p) return;
+    popovers.push({ btn: b, panel: p });
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = !p.hidden;
+      closeAllPopovers();
+      if (!isOpen) {
+        p.hidden = false;
+        b.setAttribute('aria-expanded', 'true');
+      }
+    });
+  }
+  function closeAllPopovers() {
+    for (const { btn: b, panel: p } of popovers) {
+      p.hidden = true;
+      b.setAttribute('aria-expanded', 'false');
+    }
+  }
+  registerPopover('bookmarks-btn', 'bookmarks-panel');
+  registerPopover('text-size-btn', 'text-size-panel');
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (!target.closest?.('.tool-popover-wrap')) closeAllPopovers();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeAllPopovers();
+  });
+
+  // ---------- Bookmarks panel ----------
+  function renderBookmarks() {
+    const list = getBookmarks();
+    const countEl = document.getElementById('bookmarks-count');
+    const listEl = document.getElementById('bookmarks-list');
+    if (countEl) {
+      countEl.textContent = String(list.length);
+      countEl.hidden = list.length === 0;
+    }
+    if (!listEl) return;
+    if (!list.length) {
+      listEl.innerHTML = '<p class="tool-panel-empty">Star a note while reading to save it here.</p>';
+      return;
+    }
+    listEl.innerHTML = list
+      .map(
+        (b) => `
+        <div class="bookmark-row">
+          <a href="${b.url}">${b.title}</a>
+          <button type="button" class="bookmark-remove" data-url="${b.url}" aria-label="Remove bookmark">×</button>
+        </div>`,
+      )
+      .join('');
+    listEl.querySelectorAll<HTMLButtonElement>('.bookmark-remove').forEach((rmBtn) => {
+      rmBtn.addEventListener('click', () => {
+        const url = rmBtn.dataset.url;
+        if (url) removeBookmark(url);
+      });
+    });
+  }
+  document.addEventListener('learnex:bookmarks-changed', renderBookmarks);
+  renderBookmarks();
+
+  // ---------- Text size ----------
+  const SIZE_KEY = 'learnex-text-size';
+  document.querySelectorAll<HTMLButtonElement>('.text-size-option').forEach((opt) => {
+    opt.addEventListener('click', () => {
+      const size = opt.dataset.size;
+      if (size === 'md') {
+        root.removeAttribute('data-text-size');
+        localStorage.removeItem(SIZE_KEY);
+      } else if (size) {
+        root.setAttribute('data-text-size', size);
+        localStorage.setItem(SIZE_KEY, size);
+      }
+      closeAllPopovers();
+    });
+  });
+
+  // ---------- Retro CRT toggle ----------
+  const CRT_KEY = 'learnex-crt';
+  const crtBtn = document.getElementById('crt-toggle-btn');
+  crtBtn?.setAttribute('aria-pressed', root.getAttribute('data-crt') === 'on' ? 'true' : 'false');
+  crtBtn?.addEventListener('click', () => {
+    const on = root.getAttribute('data-crt') === 'on';
+    if (on) {
+      root.removeAttribute('data-crt');
+      localStorage.removeItem(CRT_KEY);
+    } else {
+      root.setAttribute('data-crt', 'on');
+      localStorage.setItem(CRT_KEY, 'on');
+    }
+    crtBtn.setAttribute('aria-pressed', String(!on));
+  });
+</script>
+
+<style>
+  /* The header collapses via a max-height transition, capped generously above
+     its real content height (~60px) so it never clips while shown.
+     `overflow` itself is only `hidden` while actively animating — settling
+     back to `visible` 0.32s after becoming fully shown (and flipping to
+     `hidden` immediately when starting to hide) — otherwise it would
+     permanently clip anything that pops out below its own box, like the
+     tooltips and the search-results dropdown. Same delayed-switch trick as
+     `visibility` below, just in the opposite direction. */
+  .site-header {
+    overflow: visible;
+    max-height: 300px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elevated);
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    transition: max-height 0.32s ease, border-color 0.32s ease, visibility 0s linear 0s,
+      overflow 0s linear 0.32s;
+  }
+  :global([data-navbar='hidden']) .site-header {
+    max-height: 0;
+    overflow: hidden;
+    border-bottom-color: transparent;
+    visibility: hidden;
+    transition: max-height 0.32s ease, border-color 0.32s ease, visibility 0s linear 0.32s,
+      overflow 0s linear 0s;
+  }
+
+  .site-header-row {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0.7rem 1.75rem;
+  }
+
+  .mobile-nav-toggle {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 30px;
+    height: 30px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .mobile-nav-toggle span {
+    display: block;
+    height: 2px;
+    margin: 0 6px;
+    background: var(--brass);
+  }
+  @media (max-width: 880px) {
+    .mobile-nav-toggle {
+      display: flex;
+    }
+    .search-slot {
+      max-width: none;
+    }
+    .search-kbd {
+      display: none;
+    }
+  }
+
+  .wordmark {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    text-decoration: none;
+    color: var(--ink);
+    flex-shrink: 0;
+    opacity: 1;
+    transition: opacity 0.14s ease;
+  }
+  /* Fades out quickly as the header starts collapsing (see .site-header's own
+     longer transition) rather than being clipped mid-fade. Its counterpart,
+     .sidebar-wordmark in BaseLayout, fades in over the same window so the
+     brand reads as "settling into the sidebar" rather than just vanishing. */
+  :global([data-navbar='hidden']) .wordmark {
+    opacity: 0;
+  }
+  .wordmark-logo {
+    display: block;
+    height: 46px;
+    width: auto;
+    flex-shrink: 0;
+    transform: translateY(-3px);
+  }
+  .wordmark-text {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .search-slot {
+    position: relative;
+    flex: 1;
+    max-width: 32rem;
+    display: flex;
+    align-items: center;
+  }
+  .search-icon {
+    position: absolute;
+    left: 0.7rem;
+    color: var(--ink-faint);
+    pointer-events: none;
+  }
+  .search-input {
+    width: 100%;
+    padding: 0.45rem 2.2rem 0.45rem 2rem;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+  }
+  .search-input:focus {
+    outline: 2px solid var(--brass-bright);
+    outline-offset: 1px;
+  }
+  .search-kbd {
+    position: absolute;
+    right: 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--ink-faint);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.05rem 0.4rem;
+    pointer-events: none;
+  }
+  .search-results {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    left: 0;
+    right: 0;
+    max-height: 70vh;
+    overflow-y: auto;
+    z-index: 50;
+  }
+  .search-results:empty {
+    display: none;
+  }
+  .search-results {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    box-shadow: 0 16px 32px -12px hsl(var(--shadow-color) / 0.55);
+    padding: 0.4rem;
+  }
+  .search-results :global(.search-result) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.6rem 0.7rem;
+    border-radius: 3px;
+    text-decoration: none;
+    border-bottom: none;
+    color: var(--ink);
+  }
+  .search-results :global(.search-result:hover) {
+    background: var(--bg-inset);
+  }
+  .search-results :global(.search-result-title) {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    color: var(--accent);
+  }
+  .search-results :global(.search-result-excerpt) {
+    font-size: 0.8rem;
+    color: var(--ink-muted);
+    line-height: 1.4;
+  }
+  .search-results :global(.search-result-excerpt mark) {
+    background: var(--brass-soft);
+    color: var(--ink);
+  }
+  .search-results :global(.search-empty) {
+    padding: 0.7rem;
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    margin: 0;
+  }
+
+  /* ---------- Toolbar (random / bookmarks / text size / CRT) ---------- */
+
+  .toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .tool-btn {
+    position: relative;
+    height: 38px;
+    min-width: 38px;
+    padding: 0 0.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-inset);
+    color: var(--brass);
+    cursor: pointer;
+  }
+  .tool-btn:hover {
+    border-color: var(--brass);
+  }
+
+  .latin-motto {
+    margin: 0;
+    margin-left: auto;
+    flex-shrink: 0;
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    font-style: italic;
+    color: var(--brass);
+    cursor: default;
+  }
+  @media (max-width: 1320px) {
+    .latin-motto {
+      display: none;
+    }
+  }
+  .tool-btn-text {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    color: var(--ink);
+  }
+  #crt-toggle-btn[aria-pressed='true'] {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+  }
+
+  .tool-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 0.62rem;
+    line-height: 15px;
+    text-align: center;
+    font-family: var(--font-mono);
+  }
+
+  .tool-popover-wrap {
+    position: relative;
+  }
+  .tool-panel {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    width: 17rem;
+    max-height: 22rem;
+    overflow-y: auto;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    box-shadow: 0 16px 32px -12px hsl(var(--shadow-color) / 0.55);
+    padding: 0.75rem;
+    z-index: 55;
+  }
+  .tool-panel-narrow {
+    width: 9rem;
+    padding: 0.4rem;
+  }
+  .tool-panel-title {
+    font-size: 0.6rem;
+    color: var(--brass);
+    letter-spacing: 0.04em;
+    margin: 0 0 0.6rem;
+  }
+  .tool-panel-empty {
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    margin: 0;
+    padding: 0.3rem;
+  }
+  .tool-panel-list :global(.bookmark-row) {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.3rem;
+    border-radius: 3px;
+  }
+  .tool-panel-list :global(.bookmark-row:hover) {
+    background: var(--bg-inset);
+  }
+  .tool-panel-list :global(.bookmark-row a) {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.85rem;
+    color: var(--ink);
+    text-decoration: none;
+    border-bottom: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tool-panel-list :global(.bookmark-row a:hover) {
+    color: var(--accent);
+  }
+  .tool-panel-list :global(.bookmark-remove) {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: transparent;
+    color: var(--ink-faint);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .tool-panel-list :global(.bookmark-remove:hover) {
+    color: var(--accent);
+  }
+
+  .text-size-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.45rem 0.6rem;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .text-size-option:hover {
+    background: var(--bg-inset);
+    color: var(--accent);
+  }
+
+  @media (max-width: 980px) {
+    .tool-btn-text,
+    #crt-toggle-btn {
+      display: none;
+    }
+  }
+
+  .theme-toggle {
+    position: relative;
+    height: 38px;
+    min-width: 38px;
+    flex-shrink: 0;
+    padding: 0 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-inset);
+    color: var(--brass);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .theme-toggle:hover {
+    border-color: var(--brass);
+  }
+
+  .about-btn {
+    flex-shrink: 0;
+    /* .site-header-row's gap is 1.5rem everywhere, which reads as too much
+       air between this and the theme toggle right next to it — pull it in
+       to roughly match .toolbar-group's own 0.5rem icon spacing instead. */
+    margin-left: -1rem;
+  }
+  .icon-moon {
+    display: none;
+  }
+  :global([data-theme='dark']) .icon-sun {
+    display: none;
+  }
+  :global([data-theme='dark']) .icon-moon {
+    display: block;
+  }
+  @media (prefers-color-scheme: dark) {
+    :global(html:not([data-theme='light'])) .icon-sun {
+      display: none;
+    }
+    :global(html:not([data-theme='light'])) .icon-moon {
+      display: block;
+    }
+  }
+</style>

@@ -1,0 +1,52 @@
+---
+import { getCollection, render } from 'astro:content';
+import ReaderLayout from '../../layouts/ReaderLayout.astro';
+import { LANGUAGE_CATEGORY_ORDER, LANGUAGE_CATEGORY_LABELS } from '../../lib/domainGroups';
+import { getBacklinksFor } from '../../lib/backlinks';
+
+export async function getStaticPaths() {
+  const languages = await getCollection('languages');
+  const notes = languages.filter((l) => !l.data.isMoc);
+
+  const ordered = [...notes].sort((a, b) => {
+    const ca = LANGUAGE_CATEGORY_ORDER.indexOf(a.data.category ?? '');
+    const cb = LANGUAGE_CATEGORY_ORDER.indexOf(b.data.category ?? '');
+    if (ca !== cb) return ca - cb;
+    return a.data.title.localeCompare(b.data.title);
+  });
+
+  return notes.map((entry) => {
+    const idx = ordered.findIndex((s) => s.id === entry.id);
+    return {
+      params: { slug: entry.data.slug },
+      props: {
+        entry,
+        prev: idx > 0 ? ordered[idx - 1] : undefined,
+        next: idx < ordered.length - 1 ? ordered[idx + 1] : undefined,
+      },
+    };
+  });
+}
+
+const { entry, prev, next } = Astro.props;
+const { Content, headings } = await render(entry);
+const categoryLabel = LANGUAGE_CATEGORY_LABELS[entry.data.category ?? ''] ?? entry.data.category;
+const backlinks = await getBacklinksFor(`/languages/${entry.data.slug}`);
+---
+
+<ReaderLayout
+  title={entry.data.title}
+  crumbs={[
+    { label: 'Home', href: '/' },
+    { label: 'Programming Languages', href: '/languages' },
+    { label: categoryLabel ?? '' },
+    { label: entry.data.title },
+  ]}
+  headings={headings}
+  status={entry.data.status === 'known' ? 'known' : 'to-learn'}
+  prev={prev && { title: prev.data.title, href: `/languages/${prev.data.slug}` }}
+  next={next && { title: next.data.title, href: `/languages/${next.data.slug}` }}
+  backlinks={backlinks}
+>
+  <Content />
+</ReaderLayout>

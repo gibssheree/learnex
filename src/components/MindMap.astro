@@ -1,0 +1,190 @@
+---
+import { LANGUAGE_CATEGORY_ORDER, LANGUAGE_CATEGORY_LABELS } from '../lib/domainGroups';
+
+interface LangNode {
+  title: string;
+  slug: string;
+  status?: string;
+}
+
+interface Props {
+  categories: { key: string; languages: LangNode[] }[];
+}
+
+const { categories } = Astro.props;
+
+const PALETTE: Record<string, string> = {
+  Systems: '#8a1526',
+  'OOP/Enterprise': '#93711f',
+  'Scripting/Dynamic': '#3f6b52',
+  Functional: '#3a5a8c',
+  'Data/Scientific': '#7c4a2d',
+  'Legacy/Enterprise': '#5c4a72',
+  Niche: '#b8933a',
+};
+
+const ordered = LANGUAGE_CATEGORY_ORDER.map((key) => categories.find((c) => c.key === key)).filter(
+  (c): c is { key: string; languages: LangNode[] } => !!c,
+);
+
+const total = ordered.reduce((s, c) => s + c.languages.length, 0);
+const CX = 480;
+const CY = 480;
+const R1 = 130;
+const R2 = 350;
+const GAP = 0.045; // radians of empty space between sectors
+
+let cursor = -Math.PI / 2;
+const cats = ordered.map((cat) => {
+  const sector = (cat.languages.length / total) * (Math.PI * 2) - GAP;
+  const start = cursor;
+  const end = cursor + sector;
+  cursor = end + GAP;
+  const mid = (start + end) / 2;
+  const color = PALETTE[cat.key] ?? '#93711f';
+
+  const langs = cat.languages.map((lang, i) => {
+    const t = cat.languages.length === 1 ? 0.5 : i / (cat.languages.length - 1);
+    const angle = cat.languages.length === 1 ? mid : start + t * sector;
+    return {
+      ...lang,
+      angle,
+      x: CX + R2 * Math.cos(angle),
+      y: CY + R2 * Math.sin(angle),
+    };
+  });
+
+  return {
+    key: cat.key,
+    label: LANGUAGE_CATEGORY_LABELS[cat.key] ?? cat.key,
+    color,
+    angle: mid,
+    x: CX + R1 * Math.cos(mid),
+    y: CY + R1 * Math.sin(mid),
+    langs,
+  };
+});
+---
+
+<div class="mindmap-wrap">
+  <svg viewBox="0 0 960 960" class="mindmap" role="img" aria-label="Programming languages mind map">
+    <circle cx={CX} cy={CY} r="46" class="mm-center-ring" />
+    <text x={CX} y={CY - 4} class="mm-center-text">50</text>
+    <text x={CX} y={CY + 16} class="mm-center-sub">LANGUAGES</text>
+
+    {cats.map((cat) => (
+      <g class="mm-category">
+        <line x1={CX} y1={CY} x2={cat.x} y2={cat.y} stroke={cat.color} stroke-width="1.6" opacity="0.55" />
+        {cat.langs.map((lang) => (
+          <line
+            x1={cat.x}
+            y1={cat.y}
+            x2={lang.x}
+            y2={lang.y}
+            stroke={cat.color}
+            stroke-width="0.9"
+            opacity="0.4"
+          />
+        ))}
+      </g>
+    ))}
+
+    {cats.map((cat) => {
+      const isRight = Math.cos(cat.angle) >= -0.05;
+      return (
+        <g class="mm-cat-node">
+          <circle cx={cat.x} cy={cat.y} r="7" fill={cat.color} />
+          <text
+            x={cat.x + (isRight ? 12 : -12)}
+            y={cat.y + 4}
+            text-anchor={isRight ? 'start' : 'end'}
+            class="mm-cat-label"
+            style={`fill:${cat.color}`}
+          >
+            {cat.label}
+          </text>
+        </g>
+      );
+    })}
+
+    {cats.map((cat) =>
+      cat.langs.map((lang) => {
+        const isRight = Math.cos(lang.angle) >= 0;
+        const known = lang.status === 'known';
+        return (
+          <a href={`/languages/${lang.slug}`} class="mm-lang-link">
+            <g class="mm-lang-node">
+              <circle
+                cx={lang.x}
+                cy={lang.y}
+                r={known ? 4.5 : 3.2}
+                fill={known ? cat.color : 'var(--bg)'}
+                stroke={cat.color}
+                stroke-width="1.3"
+              />
+              <text
+                x={lang.x + (isRight ? 9 : -9)}
+                y={lang.y + 3.5}
+                text-anchor={isRight ? 'start' : 'end'}
+                class="mm-lang-label"
+              >
+                {lang.title}
+              </text>
+            </g>
+          </a>
+        );
+      }),
+    )}
+  </svg>
+</div>
+
+<style>
+  .mindmap-wrap {
+    width: 100%;
+    overflow: visible;
+  }
+  .mindmap {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .mm-center-ring {
+    fill: var(--bg-inset);
+    stroke: var(--brass);
+    stroke-width: 1.5;
+  }
+  .mm-center-text {
+    font-family: var(--font-display);
+    font-size: 26px;
+    text-anchor: middle;
+    fill: var(--ink);
+  }
+  .mm-center-sub {
+    font-family: var(--font-pixel);
+    font-size: 7px;
+    text-anchor: middle;
+    fill: var(--brass);
+    letter-spacing: 1px;
+  }
+  .mm-cat-label {
+    font-family: var(--font-display);
+    font-size: 14px;
+    letter-spacing: 0.03em;
+  }
+  .mm-lang-label {
+    font-family: var(--font-body);
+    font-size: 11px;
+    fill: var(--ink-muted);
+    transition: fill 0.15s ease;
+  }
+  .mm-lang-link {
+    cursor: pointer;
+  }
+  .mm-lang-link:hover .mm-lang-label {
+    fill: var(--accent);
+    font-weight: 600;
+  }
+  .mm-lang-link:hover circle {
+    r: 6;
+  }
+</style>
