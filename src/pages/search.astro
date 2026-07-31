@@ -1,0 +1,192 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Search" description="Search the full Learnex archive.">
+  <div class="search-page">
+    <header class="search-page-header">
+      <p class="font-pixel search-page-kicker">Find Anything</p>
+      <h1>Search the Archive</h1>
+    </header>
+
+    <div class="search-page-box">
+      <input
+        id="search-page-input"
+        class="search-page-input"
+        type="search"
+        placeholder="Search the archive…"
+        aria-label="Search"
+        autofocus
+      />
+    </div>
+
+    <p id="search-page-status" class="search-page-status font-pixel"></p>
+    <div id="search-page-results" class="search-page-results"></div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { getPagefind } from '../lib/pagefind-client';
+
+  const input = document.getElementById('search-page-input') as HTMLInputElement | null;
+  const statusEl = document.getElementById('search-page-status');
+  const resultsEl = document.getElementById('search-page-results');
+
+  const MAX_RESULTS = 40;
+
+  function syncUrl(query: string) {
+    const url = new URL(window.location.href);
+    if (query) url.searchParams.set('q', query);
+    else url.searchParams.delete('q');
+    window.history.replaceState({}, '', url);
+  }
+
+  async function runSearch(query: string) {
+    if (!resultsEl || !statusEl) return;
+
+    if (!query) {
+      resultsEl.innerHTML = '';
+      statusEl.textContent = '';
+      return;
+    }
+
+    statusEl.textContent = 'Searching…';
+    resultsEl.innerHTML = '';
+
+    const pagefind = await getPagefind();
+    if (!pagefind) {
+      statusEl.textContent = '';
+      resultsEl.innerHTML =
+        '<p class="search-page-empty">Search is available once Learnex is built for production (<code>npm run build</code>).</p>';
+      return;
+    }
+
+    const search = await pagefind.search(query);
+    const total = search.results.length;
+    const items = await Promise.all(search.results.slice(0, MAX_RESULTS).map((r) => r.data()));
+
+    if (!items.length) {
+      statusEl.textContent = '';
+      resultsEl.innerHTML = '<p class="search-page-empty">No matches in the archive.</p>';
+      return;
+    }
+
+    statusEl.textContent =
+      total > MAX_RESULTS
+        ? `Showing ${MAX_RESULTS} of ${total} results`
+        : `${total} result${total === 1 ? '' : 's'}`;
+
+    resultsEl.innerHTML = items
+      .map(
+        (item) => `
+        <a class="search-page-result" href="${item.url}">
+          <span class="search-page-result-title">${item.meta?.title ?? item.url}</span>
+          <span class="search-page-result-excerpt">${item.excerpt}</span>
+        </a>`,
+      )
+      .join('');
+  }
+
+  let debounceTimer: number | undefined;
+  input?.addEventListener('input', () => {
+    window.clearTimeout(debounceTimer);
+    const value = input.value.trim();
+    syncUrl(value);
+    debounceTimer = window.setTimeout(() => runSearch(value), 150);
+  });
+
+  const initialQuery = new URLSearchParams(window.location.search).get('q') ?? '';
+  if (input) input.value = initialQuery;
+  runSearch(initialQuery);
+</script>
+
+<style>
+  .search-page {
+    max-width: 44rem;
+    margin: 0 auto;
+    padding: 2.5rem 2rem 6rem;
+  }
+  .search-page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .search-page-kicker {
+    font-size: 0.62rem;
+    color: var(--brass);
+    letter-spacing: 0.08em;
+  }
+  .search-page-header h1 {
+    font-size: 2rem;
+    margin: 0.5rem 0 0;
+  }
+
+  .search-page-box {
+    margin-bottom: 0.6rem;
+  }
+  .search-page-input {
+    width: 100%;
+    padding: 0.85rem 1.1rem;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+  }
+  .search-page-input:focus {
+    outline: 2px solid var(--brass-bright);
+    outline-offset: 1px;
+  }
+
+  .search-page-status {
+    min-height: 1.4em;
+    margin: 0 0 1.25rem;
+    font-size: 0.62rem;
+    color: var(--brass);
+    letter-spacing: 0.04em;
+  }
+
+  .search-page-results {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+  .search-page-results :global(.search-page-result) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 1.1rem 1.3rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    text-decoration: none;
+    color: var(--ink);
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  .search-page-results :global(.search-page-result:hover) {
+    border-color: var(--brass);
+    transform: translateY(-1px);
+  }
+  .search-page-results :global(.search-page-result-title) {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    color: var(--accent);
+  }
+  .search-page-results :global(.search-page-result-excerpt) {
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: var(--ink-muted);
+  }
+  .search-page-results :global(.search-page-result-excerpt mark) {
+    background: var(--brass-soft);
+    color: var(--ink);
+  }
+  .search-page-results :global(.search-page-empty) {
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--ink-faint);
+    background: var(--bg-elevated);
+    border: 1px dashed var(--border-strong);
+    border-radius: 4px;
+  }
+</style>

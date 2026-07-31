@@ -42,20 +42,24 @@ const languageCategories = LANGUAGE_CATEGORY_ORDER.map((key) => ({
 const totalDomains = DOMAIN_GROUPS.reduce((sum, g) => sum + g.domains.length, 0);
 ---
 
-<BaseLayout title="Learnex" description="A classical, illustrated archive built from your own learning vault.">
+<BaseLayout title="Learnex" description="An illustrated archive of programming languages and computer-science knowledge, written and maintained by one person.">
   <div class="home">
     <section class="hero">
       <div class="hero-copy">
         <p class="font-pixel hero-kicker">A vault, made book</p>
         <h1 class="hero-title">Learnex</h1>
         <p class="hero-tagline">
-          Every language and term you've catalogued, bound into one illustrated archive.
-          Read it like a book, browse it like a library, search it like an index.
+          {languageNotes.length} programming languages and {termNotes.length} terms in computer
+          science, written up and bound into one illustrated archive. Read it like a book, browse
+          it like a library, search it like an index.
         </p>
         <div class="hero-actions">
           <a class="btn btn-primary" href="/languages">Enter the Hall of Languages</a>
           <a class="btn btn-secondary" href="/terms/full-stack">Open the Archive</a>
         </div>
+        <p class="hero-onboarding">
+          New here? <a href="/about">Read what this actually is</a> before you dive in.
+        </p>
       </div>
 
       <div class="hero-figure">
@@ -93,9 +97,10 @@ const totalDomains = DOMAIN_GROUPS.reduce((sum, g) => sum + g.domains.length, 0)
 
           <div class="wiki-lead-body">
             <p class="wiki-lead-text">
-              {languageNotes.length} languages charted across seven paradigms, {knownCount} already
-              known. Browse the <a href="/languages">interactive mind map</a>, or the full catalogue
-              below.
+              {languageNotes.length} languages charted across seven paradigms — the brass dot marks
+              {knownCount} the author already knows. Bookmark a note or open the <a href="/review">review
+              deck</a> to track your own instead. Browse the <a href="/languages">interactive mind map</a>,
+              or the full catalogue below.
             </p>
 
             {languageCategories.map((cat) => (
@@ -106,7 +111,7 @@ const totalDomains = DOMAIN_GROUPS.reduce((sum, g) => sum + g.domains.length, 0)
                     <>
                       <a href={`/languages/${lang.data.slug}`}>{lang.data.title}</a>
                       {lang.data.status === 'known' && (
-                        <i class="known-dot" role="img" aria-label="Already known" data-tooltip="Already known" />
+                        <i class="known-dot" role="img" aria-label="Marked known by the author" data-tooltip="Marked known by the author" />
                       )}
                       {i < cat.languages.length - 1 ? ', ' : ''}
                     </>
@@ -287,6 +292,20 @@ const totalDomains = DOMAIN_GROUPS.reduce((sum, g) => sum + g.domains.length, 0)
     display: flex;
     gap: 1rem;
     flex-wrap: wrap;
+  }
+  .hero-onboarding {
+    margin: 1rem 0 0;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+  }
+  .hero-onboarding a {
+    color: var(--ink-muted);
+    border-bottom: 1px solid var(--brass-soft);
+    text-decoration: none;
+  }
+  .hero-onboarding a:hover {
+    color: var(--accent);
+    border-color: var(--accent);
   }
 
   .hero-figure-frame {

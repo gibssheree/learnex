@@ -1,11 +1,19 @@
-import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import matter from 'gray-matter';
 
-const here = path.dirname(fileURLToPath(import.meta.url)); // <project>/src/lib
-const PROJECT_ROOT = path.resolve(here, '../../'); // <project>
-export const VAULT_ROOT = path.resolve(PROJECT_ROOT, '..'); // the Obsidian vault
+// Deliberately process.cwd(), not an import.meta.url-relative path: Astro
+// bundles API routes like rss.xml.ts into dist/.prerender/chunks/ for
+// prerendering, which relocates this module and breaks any path computed
+// relative to its own file location. astro dev/build/preview always run
+// from the project root, so cwd is stable everywhere this code executes.
+const PROJECT_ROOT = process.cwd();
+// Learnex owns its own copy of the content under content/ — it's no longer
+// read live from the personal Obsidian vault one folder up. Publishing an
+// update means copying fresh notes in here (see the sync script), not just
+// editing the vault and rebuilding.
+export const VAULT_ROOT = path.resolve(PROJECT_ROOT, 'content');
 export const LANGUAGES_DIR = path.join(VAULT_ROOT, 'Programming Languages');
 export const TERMS_DIR = path.join(VAULT_ROOT, 'Terms and Knowledge');
 
@@ -177,4 +185,51 @@ export function readNote(file: VaultFile): ParsedNote {
   const raw = fs.readFileSync(file.absPath, 'utf-8');
   const { data, content } = matter(raw);
   return { file, frontmatter: data, body: content };
+}
+
+let _gitDatesCache: Map<string, Date> | null = null;
+
+/** Maps every file under content/ to the author date of the most recent git
+ * commit that touched it, via one batched `git log` call rather than one
+ * process per file. Returns an empty map (not an error) if git isn't
+ * available or content/ has no history yet — lastModified() below falls
+ * back to filesystem mtime in that case. */
+function loadGitDates(): Map<string, Date> {
+  if (_gitDatesCache) return _gitDatesCache;
+  const map = new Map<string, Date>();
+  try {
+    // %x01 is a control character used purely as a delimiter — it can't
+    // appear in a file path or an ISO date, so splitting on it is safe.
+    const out = execFileSync('git', ['log', '--name-only', '--format=%x01%aI', '--', 'content'], {
+      cwd: PROJECT_ROOT,
+      encoding: 'utf-8',
+    });
+    let currentDate: string | null = null;
+    for (const line of out.split('\n')) {
+      if (line.startsWith('\x01')) {
+        currentDate = line.slice(1).trim();
+      } else if (line.trim() && currentDate) {
+        const abs = path.resolve(PROJECT_ROOT, line.trim());
+        // git log is newest-first, so the first time a path is seen is its
+        // most recent change — later (older) hits for the same path are ignored.
+        if (!map.has(abs)) map.set(abs, new Date(currentDate));
+      }
+    }
+  } catch {
+    // No git repo, git not on PATH, or content/ not committed yet.
+  }
+  _gitDatesCache = map;
+  return map;
+}
+
+/** Best known "last modified" moment for a vault file: git history if the
+ * file has been committed, otherwise the file's own mtime on disk. */
+export function lastModified(absPath: string): Date {
+  const gitDate = loadGitDates().get(absPath);
+  if (gitDate) return gitDate;
+  try {
+    return fs.statSync(absPath).mtime;
+  } catch {
+    return new Date();
+  }
 }

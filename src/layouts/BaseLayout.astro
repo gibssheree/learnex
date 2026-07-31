@@ -22,6 +22,7 @@ const { title, description = 'Learnex — a classical, illustrated archive for l
     <meta name="generator" content={Astro.generator} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="alternate" type="application/rss+xml" title="Learnex" href="/rss.xml" />
     <title>{title === 'Learnex' ? title : `${title} · Learnex`}</title>
     <script is:inline>
       (function () {
@@ -103,6 +104,9 @@ const { title, description = 'Learnex — a classical, illustrated archive for l
       });
 
       backdrop?.addEventListener('click', close);
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && aside?.classList.contains('open')) close();
+      });
 
       const collapseBtn = document.getElementById('sidebar-collapse-btn');
       const SIDEBAR_KEY = 'learnex-sidebar';
@@ -215,9 +219,14 @@ const { title, description = 'Learnex — a classical, illustrated archive for l
     max-height: 0;
     opacity: 0;
     overflow: hidden;
+    /* pointer-events: none stops a mouse click, but a clipped max-height: 0
+       element is still in tab order unless visibility is also hidden — a
+       keyboard user tabbing through the sidebar would otherwise land on an
+       invisible link while the navbar is shown. */
+    visibility: hidden;
     pointer-events: none;
     transition: max-height 0.32s ease, opacity 0.2s ease, padding 0.32s ease,
-      border-color 0.32s ease, margin-bottom 0.32s ease;
+      border-color 0.32s ease, margin-bottom 0.32s ease, visibility 0s linear 0.32s;
   }
   .sidebar-wordmark-logo {
     display: block;
@@ -241,9 +250,10 @@ const { title, description = 'Learnex — a classical, illustrated archive for l
     padding: 1rem 1.1rem;
     border-bottom-color: var(--border);
     margin-bottom: 0.5rem;
+    visibility: visible;
     pointer-events: auto;
     transition: max-height 0.32s ease, opacity 0.28s ease 0.1s, padding 0.32s ease,
-      border-color 0.32s ease, margin-bottom 0.32s ease;
+      border-color 0.32s ease, margin-bottom 0.32s ease, visibility 0s linear 0s;
   }
 
   .navbar-show-btn {

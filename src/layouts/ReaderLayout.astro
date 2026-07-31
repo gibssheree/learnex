@@ -37,6 +37,13 @@ interface Props {
 }
 
 const { title, crumbs, headings, status, prev, next, backlinks } = Astro.props;
+
+const issueParams = new URLSearchParams({
+  title: 'Content issue: ' + title,
+  labels: 'content',
+  body: 'Note: ' + Astro.url.pathname + "\n\nWhat's wrong:\n",
+});
+const issueUrl = 'https://github.com/gibssheree/learnex/issues/new?' + issueParams.toString();
 ---
 
 <BaseLayout title={title}>
@@ -58,10 +65,19 @@ const { title, crumbs, headings, status, prev, next, backlinks } = Astro.props;
               <Medallion
                 variant={status}
                 size={40}
-                title={status === 'known' ? 'Already known' : 'To learn'}
+                title={status === 'known' ? 'Marked known by the author' : 'To learn'}
               />
             )}
             <h1>{title}</h1>
+            <button
+              id="print-note-btn"
+              class="print-toggle"
+              type="button"
+              aria-label="Print or save this note as PDF"
+              data-tooltip="Print / save as PDF"
+            >
+              <PixelIcon name="printer" size={18} />
+            </button>
             <button
               id="bookmark-toggle-btn"
               class="bookmark-toggle"
@@ -91,6 +107,10 @@ const { title, crumbs, headings, status, prev, next, backlinks } = Astro.props;
               </ul>
             </div>
           )}
+
+          <p class="feedback-link" data-pagefind-ignore>
+            <a href={issueUrl} target="_blank" rel="noopener noreferrer">Spot an error in this note?</a>
+          </p>
         </div>
       </CornerFrame>
 
@@ -137,6 +157,8 @@ const { title, crumbs, headings, status, prev, next, backlinks } = Astro.props;
     // Stay in sync if a bookmark is removed elsewhere (e.g. the header panel).
     document.addEventListener('learnex:bookmarks-changed', () => sync(isBookmarked(url)));
   }
+
+  document.getElementById('print-note-btn')?.addEventListener('click', () => window.print());
 </script>
 
 <style>
@@ -150,20 +172,32 @@ const { title, crumbs, headings, status, prev, next, backlinks } = Astro.props;
   }
 
   .breadcrumbs {
-    font-size: 0.78rem;
-    color: var(--ink-faint);
-    margin-bottom: 0.9rem;
+    font-size: 0.82rem;
+    color: var(--ink-muted);
+    margin-bottom: 1.15rem;
+    padding-bottom: 0.7rem;
+    border-bottom: 1px solid var(--border);
     font-family: var(--font-mono);
   }
   .breadcrumbs a {
-    color: var(--ink-faint);
+    color: var(--ink-muted);
     border-bottom: none;
   }
   .breadcrumbs a:hover {
     color: var(--accent);
   }
+  /* "Home" is always the first crumb — the one clear way back to the site's
+     structure for a reader who landed cold on this note from a search
+     result, so it gets more visual weight than the rest of the trail. */
+  .breadcrumbs a:first-child {
+    color: var(--brass);
+    font-weight: 600;
+  }
+  .breadcrumbs a:first-child:hover {
+    color: var(--accent);
+  }
   .crumb-sep {
-    margin: 0 0.45rem;
+    margin: 0 0.5rem;
     color: var(--border-strong);
   }
 
@@ -210,6 +244,21 @@ const { title, crumbs, headings, status, prev, next, backlinks } = Astro.props;
     border-color: var(--brass);
   }
 
+  .feedback-link {
+    max-width: 40rem;
+    margin: 2rem auto 0;
+    text-align: center;
+    font-size: 0.8rem;
+  }
+  .feedback-link a {
+    color: var(--ink-faint);
+    border-bottom: 1px solid var(--border);
+  }
+  .feedback-link a:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
   .reader-header {
     display: flex;
     align-items: center;
@@ -243,6 +292,23 @@ const { title, crumbs, headings, status, prev, next, backlinks } = Astro.props;
     color: var(--accent);
     border-color: var(--accent);
     background: var(--bg-inset);
+  }
+
+  .print-toggle {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--ink-faint);
+    cursor: pointer;
+  }
+  .print-toggle:hover {
+    border-color: var(--brass);
+    color: var(--brass);
   }
 
   .leaf-nav {

@@ -28,7 +28,8 @@ const knownCount = notes.filter((n) => n.data.status === 'known').length;
       <p class="font-pixel lang-kicker">The Great Hall</p>
       <h1>Programming Languages</h1>
       <p class="lang-tagline">
-        {notes.length} languages across seven paradigms. {knownCount} already known, the rest are the map ahead.
+        {notes.length} languages across seven paradigms. The brass dot marks {knownCount} the
+        author already knows — star or review a note of your own to track it.
       </p>
     </header>
 
@@ -48,7 +49,7 @@ const knownCount = notes.filter((n) => n.data.status === 'known').length;
                 <a href={`/languages/${lang.slug}`}>
                   {lang.title}
                   {lang.status === 'known' && (
-                    <i class="known-dot" role="img" aria-label="Already known" data-tooltip="Already known" />
+                    <i class="known-dot" role="img" aria-label="Marked known by the author" data-tooltip="Marked known by the author" />
                   )}
                 </a>
               </li>

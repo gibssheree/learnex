@@ -41,6 +41,15 @@ export function isDue(state: CardState | undefined): boolean {
   return state.due <= todayISO();
 }
 
+/** Count of cards with an existing review history that are due right now —
+ * deliberately excludes never-reviewed notes, since those aren't "waiting"
+ * for anyone, just available. Used for the small due-count badge on the
+ * header's review button, so the SRS queue isn't only visible on /review
+ * itself. */
+export function getDueCount(): number {
+  return Object.values(loadStates()).filter(isDue).length;
+}
+
 export function grade(state: CardState | undefined, route: string, g: Grade): CardState {
   let { interval, ease, reps } = state ?? { interval: 0, ease: 2.5, reps: 0, route, due: todayISO() };
 

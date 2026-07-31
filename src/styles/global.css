@@ -1,12 +1,5 @@
 @import "tailwindcss";
 
-/* Native cross-document view transitions — a soft crossfade between pages in
-   browsers that support it (Chrome/Edge). No JS router, so nothing else on
-   the page needs to change for this to degrade gracefully. */
-@view-transition {
-  navigation: auto;
-}
-
 /* Classical inscription-style display face */
 @import "@fontsource/cinzel/400.css";
 @import "@fontsource/cinzel/500.css";
@@ -432,4 +425,62 @@ code, pre, kbd {
   border: none;
   border-top: 1px solid var(--border);
   margin: 2em 0;
+}
+
+/* ---------- Print ----------
+   Strip every bit of app chrome — header, sidebar, toolbar, ornaments, CRT/
+   grain overlays, nav rails — down to just the title and the prose, in plain
+   ink-on-paper. Anything not explicitly listed here is left alone, so this
+   only needs updating if new full-page chrome is added later. */
+@media print {
+  .site-header,
+  .sidebar-aside,
+  .sidebar-collapse-btn,
+  .navbar-show-btn,
+  .sidebar-backdrop,
+  .breadcrumbs,
+  .reader-toc,
+  .leaf-nav,
+  .backlinks-section,
+  .bookmark-toggle,
+  body::before,
+  body::after {
+    display: none !important;
+  }
+  .shell {
+    display: block !important;
+  }
+  .main-content {
+    margin: 0 !important;
+  }
+  .reader-grid {
+    display: block !important;
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .page-leaf,
+  .page-leaf-inner {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .vault-prose {
+    max-width: none !important;
+    color: #000 !important;
+  }
+  .vault-prose a {
+    color: #000 !important;
+    border-bottom: none !important;
+  }
+  /* Show link targets since a printed page can't be clicked. */
+  .vault-prose a[href^="/"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.75em;
+    color: #444;
+  }
 }

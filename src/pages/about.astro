@@ -19,22 +19,25 @@ const termCount = terms.filter((t) => !t.data.isMoc).length;
 
         <div class="vault-prose drop-cap">
           <p>
-            Learnex is a personal Obsidian vault, rendered as a site. Every page here, all
-            {languageCount + termCount} of them, is a plain markdown file living in a folder one
-            level above this project. Nothing was copied in or exported. A custom loader reads
-            the vault directly at build time, so editing a note in Obsidian and rebuilding is the
-            entire publishing process.
+            Learnex is one person's ongoing notes on programming languages and computer science,
+            published as a browsable archive. Every page here, all {languageCount + termCount} of
+            them, started as a plain markdown file in a private Obsidian vault, then was copied
+            into this project's own <code>content/</code> folder and committed to source control.
+            Editing happens in that private vault; publishing an update means syncing the change
+            in and pushing it. The live site never reads the private vault directly, and never
+            has write access back into it.
           </p>
 
           <h2>How it's built</h2>
           <p>
             The site is Astro, statically generated, with no server and no database. A Content
-            Layer loader walks two folders in the vault, "Programming Languages" and "Terms and
-            Knowledge", parses each note's frontmatter, and rewrites every <code>[[wikilink]]</code>
-            into a real route by matching titles across the whole vault. Search is
-            <a href="https://pagefind.app" target="_blank" rel="noopener">Pagefind</a>, indexed
-            after the production build, which is why search only works once you've run
-            <code>npm run build</code> and not in a plain dev server.
+            Layer loader walks two folders under <code>content/</code>, "Programming Languages"
+            and "Terms and Knowledge", parses each note's frontmatter, and rewrites every
+            <code>[[wikilink]]</code> into a real route by matching titles across the whole
+            archive. Search is <a href="https://pagefind.app" target="_blank" rel="noopener">Pagefind</a>,
+            indexed after the production build — the header's dropdown shows a quick preview, and
+            <a href="/search">the full search page</a> has everything else. Both only work once
+            the site has been built for production, not in a plain dev server.
           </p>
           <p>
             The <a href="/graph">knowledge graph</a> and the "referenced by" list at the foot of
@@ -49,15 +52,22 @@ const termCount = terms.filter((t) => !t.data.isMoc).length;
             scheduler, not a full SuperMemo implementation, running entirely in your browser's
             local storage. Cards are drawn from the "Definition:" line every note opens with. No
             question was hand-authored separately from the notes themselves; sharpen a note's
-            definition and its card sharpens with it.
+            definition and its card sharpens with it. The header's review icon shows a small
+            count when cards are actually due, so the queue isn't only visible on the review page
+            itself.
           </p>
 
-          <h2>What's in it</h2>
+          <h2>What's in it, and what's coming</h2>
           <p>
-            Right now the vault holds {languageCount} programming language notes and {termCount}
+            Right now the archive holds {languageCount} programming language notes and {termCount}
             term notes across the domains listed on the <a href="/terms">Terms &amp; Knowledge</a>
-            page. Both numbers change as the vault grows, since this page reads them the same way
-            every other page does: live, from the vault, at build time.
+            page. Both numbers grow as new notes get synced in and committed — this page reads
+            them the same way every other page does, live from the content folder at build time,
+            so they're never manually updated by hand. More subjects beyond computer science are
+            planned. Everything here is one person's understanding, written in the open and
+            corrected as it turns out to be wrong, not a finished or authoritative reference —
+            <a href="/rss.xml">subscribe via RSS</a> to follow what gets added, and if something's
+            incorrect, every note has a link at the bottom to report it directly.
           </p>
         </div>
       </div>

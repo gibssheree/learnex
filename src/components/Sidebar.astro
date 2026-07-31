@@ -45,7 +45,7 @@ const inTerms = currentPath.startsWith('/terms');
                   <a href={href} aria-current={isActive(href) ? 'page' : undefined}>
                     {l.data.title}
                     {l.data.status === 'known' && (
-                      <i class="known-dot" role="img" aria-label="Already known" data-tooltip="Already known" />
+                      <i class="known-dot" role="img" aria-label="Marked known by the author" data-tooltip="Marked known by the author" />
                     )}
                   </a>
                 </li>

@@ -230,6 +230,16 @@ export const PIXEL_ICONS: Record<string, string[]> = {
     '01000010',
     '00111100',
   ],
+  printer: [
+    '01111110',
+    '01111110',
+    '11111111',
+    '10000001',
+    '10111101',
+    '10000001',
+    '11111111',
+    '00000000',
+  ],
 };
 
 export type PixelIconName = keyof typeof PIXEL_ICONS;
