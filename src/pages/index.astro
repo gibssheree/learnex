@@ -97,10 +97,9 @@ const totalDomains = DOMAIN_GROUPS.reduce((sum, g) => sum + g.domains.length, 0)
 
           <div class="wiki-lead-body">
             <p class="wiki-lead-text">
-              {languageNotes.length} languages charted across seven paradigms — the brass dot marks
-              {knownCount} the author already knows. Bookmark a note or open the <a href="/review">review
-              deck</a> to track your own instead. Browse the <a href="/languages">interactive mind map</a>,
-              or the full catalogue below.
+              {languageNotes.length} languages, each given its own page. A brass dot marks the {knownCount}
+              the author has worked with. Use the <a href="/review">review deck</a> to track your own progress,
+              or browse the <a href="/languages">mind map</a> and catalogue below.
             </p>
 
             {languageCategories.map((cat) => (
@@ -141,8 +140,7 @@ const totalDomains = DOMAIN_GROUPS.reduce((sum, g) => sum + g.domains.length, 0)
 
           <div class="wiki-lead-body">
             <p class="wiki-lead-text">
-              {termNotes.length} terms across {totalDomains} domains, grouped the way the vault itself
-              is organized.
+              {termNotes.length} terms in {totalDomains} domains, arranged the same way they sit in the vault.
             </p>
 
             {DOMAIN_GROUPS.map((group) => (

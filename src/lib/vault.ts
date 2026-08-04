@@ -137,6 +137,14 @@ export function routeFor(target: LinkTarget): string {
 
 const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 
+/** Fenced code blocks (``` ... ``` or ~~~ ... ~~~) and inline code spans (`...`)
+ * can legitimately contain literal `[[...]]` sequences that aren't wikilinks —
+ * Bash's `[[ ]]` test syntax, Lua's `[[ ]]` long-string delimiters, JS's
+ * `[[Prototype]]` internal slot, R's `df[["score"]]` subsetting, Rcpp's
+ * `// [[Rcpp::export]]` attribute. Wikilink resolution must skip these regions
+ * entirely rather than mangling the code sample. */
+const CODE_SEGMENT_RE = /```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]+`/g;
+
 export interface ResolvedBody {
   text: string;
   /** Deduped routes this note links out to, in first-seen order — used to build
@@ -145,20 +153,35 @@ export interface ResolvedBody {
 }
 
 /** Rewrites Obsidian [[wikilinks]] and [[file|alias]] links into standard markdown
- * links resolved against the vault-wide link map. Unresolvable targets (shouldn't
- * happen — the vault has 0 broken links per the last integrity check) degrade to
- * plain text rather than a dead link. */
+ * links resolved against the vault-wide link map. Unresolvable targets degrade to
+ * plain text rather than a dead link. Text inside fenced code blocks and inline
+ * code spans is left byte-identical (see CODE_SEGMENT_RE) so real `[[...]]` syntax
+ * in code examples doesn't get rewritten or stripped. */
 export function resolveWikilinks(body: string, linkMap: Map<string, LinkTarget>): ResolvedBody {
   const seen = new Set<string>();
-  const text = body.replace(WIKILINK_RE, (_match, rawTarget: string, rawAlias?: string) => {
-    const target = rawTarget.trim();
-    const label = (rawAlias ?? target).trim();
-    const hit = linkMap.get(target.toLowerCase());
-    if (!hit) return label;
-    const route = routeFor(hit);
-    seen.add(route);
-    return `[${label}](${route})`;
-  });
+
+  function resolveProse(segment: string): string {
+    return segment.replace(WIKILINK_RE, (_match, rawTarget: string, rawAlias?: string) => {
+      const target = rawTarget.trim();
+      const label = (rawAlias ?? target).trim();
+      const hit = linkMap.get(target.toLowerCase());
+      if (!hit) return label;
+      const route = routeFor(hit);
+      seen.add(route);
+      return `[${label}](${route})`;
+    });
+  }
+
+  let text = '';
+  let lastIndex = 0;
+  for (const match of body.matchAll(CODE_SEGMENT_RE)) {
+    const start = match.index!;
+    text += resolveProse(body.slice(lastIndex, start));
+    text += match[0]; // code segment — left untouched
+    lastIndex = start + match[0].length;
+  }
+  text += resolveProse(body.slice(lastIndex));
+
   return { text, links: [...seen] };
 }
 
