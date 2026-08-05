@@ -91,6 +91,18 @@ import NavbarScene from './NavbarScene.astro';
       </button>
 
       <button
+        id="ipad-mode-toggle-btn"
+        class="tool-btn"
+        type="button"
+        aria-label="Toggle iPad mode"
+        aria-pressed="false"
+        data-tooltip="iPad mode — touch UI &amp; Pencil annotation"
+        data-tooltip-pos="bottom"
+      >
+        <PixelIcon name="tablet" size={16} />
+      </button>
+
+      <button
         id="navbar-hide-btn"
         class="tool-btn"
         type="button"
@@ -354,6 +366,26 @@ import NavbarScene from './NavbarScene.astro';
     }
     crtBtn.setAttribute('aria-pressed', String(!on));
   });
+
+  // ---------- iPad mode toggle ----------
+  // Same shape as the CRT toggle above: flips a [data-ipad-mode] attribute
+  // that global.css / AnnotationCanvas.astro key off of, persisted the same
+  // way. BaseLayout.astro's inline head script restores this before paint.
+  const IPAD_KEY = 'learnex-ipad-mode';
+  const ipadBtn = document.getElementById('ipad-mode-toggle-btn');
+  ipadBtn?.setAttribute('aria-pressed', root.getAttribute('data-ipad-mode') === 'on' ? 'true' : 'false');
+  ipadBtn?.addEventListener('click', () => {
+    const on = root.getAttribute('data-ipad-mode') === 'on';
+    if (on) {
+      root.removeAttribute('data-ipad-mode');
+      localStorage.removeItem(IPAD_KEY);
+    } else {
+      root.setAttribute('data-ipad-mode', 'on');
+      localStorage.setItem(IPAD_KEY, 'on');
+    }
+    ipadBtn.setAttribute('aria-pressed', String(!on));
+    document.dispatchEvent(new CustomEvent('learnex:ipad-mode-changed', { detail: { on: !on } }));
+  });
 </script>
 
 <style>
@@ -614,7 +646,8 @@ import NavbarScene from './NavbarScene.astro';
     font-size: 0.85rem;
     color: var(--ink);
   }
-  #crt-toggle-btn[aria-pressed='true'] {
+  #crt-toggle-btn[aria-pressed='true'],
+  #ipad-mode-toggle-btn[aria-pressed='true'] {
     background: var(--accent);
     color: var(--accent-ink);
     border-color: var(--accent);

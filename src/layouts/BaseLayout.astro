@@ -3,6 +3,7 @@ import '../styles/global.css';
 import Header from '../components/Header.astro';
 import Sidebar from '../components/Sidebar.astro';
 import PixelIcon from '../components/ornaments/PixelIcon.astro';
+import StudyAssistant from '../components/StudyAssistant.astro';
 
 interface Props {
   title: string;
@@ -43,6 +44,9 @@ const { title, description = 'Learnex — a classical, illustrated archive for l
           }
           if (localStorage.getItem('learnex-navbar') === 'hidden') {
             document.documentElement.setAttribute('data-navbar', 'hidden');
+          }
+          if (localStorage.getItem('learnex-ipad-mode') === 'on') {
+            document.documentElement.setAttribute('data-ipad-mode', 'on');
           }
         } catch (e) {}
       })();
@@ -85,6 +89,8 @@ const { title, description = 'Learnex — a classical, illustrated archive for l
         <slot />
       </main>
     </div>
+
+    <StudyAssistant />
 
     <script>
       const toggle = document.getElementById('mobile-nav-toggle');

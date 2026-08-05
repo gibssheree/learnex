@@ -427,6 +427,49 @@ code, pre, kbd {
   margin: 2em 0;
 }
 
+/* ---------- Touch & stylus targets ----------
+   Applies to any coarse-pointer device (real touch/Pencil hardware), not
+   gated behind iPad Mode — undersized tap targets are a usability bug on
+   touch regardless of whether the user has opted into the annotation/pencil
+   features. ~44px follows Apple's HIG minimum hit-target guidance. */
+@media (pointer: coarse) {
+  .tool-btn,
+  .theme-toggle,
+  .bookmark-toggle,
+  .print-toggle,
+  .sidebar-collapse-btn,
+  .mobile-nav-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .nav-group > summary,
+  .nav-subgroup > summary,
+  .nav-subgroup a {
+    min-height: 44px;
+  }
+  .grade-btn {
+    min-height: 52px;
+  }
+  /* Coarse pointers can't hover a tooltip open before tapping through it —
+     drop the hover-reveal tooltips entirely rather than have them flash. */
+  [data-tooltip]::after,
+  [data-tooltip]::before {
+    display: none;
+  }
+}
+
+/* ---------- iPad Mode ----------
+   A manual, explicit opt-in (toggled in Header.astro, persisted via
+   localStorage as `learnex-ipad-mode`, restored pre-paint in
+   BaseLayout.astro) rather than an automatic touch-device detection — see
+   AnnotationCanvas.astro and the .annotate-* rules there for the drawing
+   layer this unlocks. */
+:root[data-ipad-mode='on'] .vault-prose {
+  /* A touch/Pencil reading session tends to hold the device further away
+     than a desk-bound mouse+keyboard session — bump body copy up a step. */
+  font-size: 1.2rem;
+}
+
 /* ---------- Print ----------
    Strip every bit of app chrome — header, sidebar, toolbar, ornaments, CRT/
    grain overlays, nav rails — down to just the title and the prose, in plain
@@ -443,6 +486,8 @@ code, pre, kbd {
   .leaf-nav,
   .backlinks-section,
   .bookmark-toggle,
+  .assistant-root,
+  .annotate-root,
   body::before,
   body::after {
     display: none !important;

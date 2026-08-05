@@ -1,0 +1,548 @@
+---
+import PixelIcon from './ornaments/PixelIcon.astro';
+---
+
+<div class="assistant-root" data-pagefind-ignore>
+  <button
+    id="assistant-toggle-btn"
+    class="assistant-fab"
+    type="button"
+    aria-label="Open Study Assistant"
+    aria-expanded="false"
+    data-tooltip="Study Assistant"
+  >
+    <PixelIcon name="chat" size={20} />
+  </button>
+
+  <section id="assistant-panel" class="assistant-panel" hidden aria-label="Study Assistant">
+    <header class="assistant-header">
+      <p class="font-pixel assistant-title">Study Assistant</p>
+      <p id="assistant-context" class="assistant-context"></p>
+      <button
+        id="assistant-voice-toggle-btn"
+        class="assistant-voice-toggle"
+        type="button"
+        aria-label="Speak replies aloud"
+        aria-pressed="false"
+        data-tooltip="Speak replies aloud"
+        data-tooltip-pos="bottom"
+      >
+        <PixelIcon name="speaker" size={13} />
+      </button>
+      <button id="assistant-close-btn" class="assistant-close" type="button" aria-label="Close Study Assistant">×</button>
+    </header>
+
+    <div id="assistant-messages" class="assistant-messages">
+      <p class="assistant-empty">
+        Ask about anything in the vault — I'll search the notes for you rather than guess.
+      </p>
+    </div>
+
+    <form id="assistant-form" class="assistant-form">
+      <button
+        id="assistant-mic-btn"
+        class="assistant-mic"
+        type="button"
+        aria-label="Ask by voice"
+        aria-pressed="false"
+        data-tooltip="Ask by voice"
+        data-tooltip-pos="top"
+        hidden
+      >
+        <PixelIcon name="mic" size={15} />
+      </button>
+      <textarea
+        id="assistant-input"
+        class="assistant-input"
+        placeholder="Ask a question…"
+        rows="1"
+        aria-label="Message"
+      ></textarea>
+      <button id="assistant-send-btn" class="assistant-send" type="submit" aria-label="Send">
+        <PixelIcon name="send" size={16} />
+      </button>
+    </form>
+  </section>
+</div>
+
+<template id="assistant-speak-icon-tpl"><PixelIcon name="speaker" size={12} /></template>
+
+<script>
+  interface ChatMessage {
+    role: 'user' | 'model';
+    text: string;
+  }
+
+  const toggleBtn = document.getElementById('assistant-toggle-btn');
+  const closeBtn = document.getElementById('assistant-close-btn');
+  const panel = document.getElementById('assistant-panel');
+  const messagesEl = document.getElementById('assistant-messages');
+  const contextEl = document.getElementById('assistant-context');
+  const form = document.getElementById('assistant-form') as HTMLFormElement | null;
+  const input = document.getElementById('assistant-input') as HTMLTextAreaElement | null;
+  const sendBtn = document.getElementById('assistant-send-btn') as HTMLButtonElement | null;
+  const micBtn = document.getElementById('assistant-mic-btn') as HTMLButtonElement | null;
+  const voiceToggleBtn = document.getElementById('assistant-voice-toggle-btn') as HTMLButtonElement | null;
+  const speakIconTpl = document.getElementById('assistant-speak-icon-tpl') as HTMLTemplateElement | null;
+
+  const history: ChatMessage[] = [];
+
+  function currentPage() {
+    // .page-leaf-inner h1 is the reader page's real title; falls back to
+    // <title> (stripped of the " · Learnex" suffix set in BaseLayout) for
+    // index/hub pages that don't use that heading.
+    const h1 = document.querySelector('.reader-header h1, .page-leaf-inner h1');
+    const title = h1?.textContent?.trim() || document.title.replace(/\s*·\s*Learnex$/, '');
+    return { title, route: location.pathname };
+  }
+
+  function setOpen(open: boolean) {
+    if (!panel || !toggleBtn) return;
+    panel.hidden = !open;
+    toggleBtn.setAttribute('aria-expanded', String(open));
+    if (open) {
+      if (contextEl) contextEl.textContent = currentPage().title;
+      input?.focus();
+    }
+  }
+
+  toggleBtn?.addEventListener('click', () => setOpen(panel?.hidden !== false));
+  closeBtn?.addEventListener('click', () => setOpen(false));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && panel && !panel.hidden) setOpen(false);
+  });
+
+  function appendMessage(role: ChatMessage['role'], text: string) {
+    if (!messagesEl) return;
+    messagesEl.querySelector('.assistant-empty')?.remove();
+    const row = document.createElement('div');
+    row.className = `assistant-msg assistant-msg--${role}`;
+    // Text lives in its own span (rather than as the row's textContent) so a
+    // speak button can be appended to the row later without a later text
+    // update wiping it back out.
+    const textEl = document.createElement('span');
+    textEl.className = 'assistant-msg-text';
+    textEl.textContent = text;
+    row.appendChild(textEl);
+    messagesEl.appendChild(row);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return row;
+  }
+
+  // ---------- Voice: speak replies aloud (Gemini TTS via /api/speak) ----------
+  const VOICE_KEY = 'learnex-assistant-voice';
+  let voiceEnabled = localStorage.getItem(VOICE_KEY) === 'on';
+  voiceToggleBtn?.setAttribute('aria-pressed', String(voiceEnabled));
+
+  voiceToggleBtn?.addEventListener('click', () => {
+    voiceEnabled = !voiceEnabled;
+    voiceToggleBtn.setAttribute('aria-pressed', String(voiceEnabled));
+    if (voiceEnabled) localStorage.setItem(VOICE_KEY, 'on');
+    else localStorage.removeItem(VOICE_KEY);
+  });
+
+  let currentAudio: HTMLAudioElement | null = null;
+
+  async function speak(text: string, triggerBtn?: HTMLButtonElement | null) {
+    currentAudio?.pause();
+    if (triggerBtn) triggerBtn.disabled = true;
+    try {
+      const res = await fetch('/api/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.audioBase64) return;
+      currentAudio = new Audio(`data:${data.mimeType};base64,${data.audioBase64}`);
+      await currentAudio.play();
+    } catch {
+      // Voice is a bonus on top of the text answer that's already on screen
+      // — fail quietly rather than opening a second error path.
+    } finally {
+      if (triggerBtn) triggerBtn.disabled = false;
+    }
+  }
+
+  function addSpeakButton(row: HTMLElement | null | undefined, text: string) {
+    if (!row || !speakIconTpl) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'assistant-msg-speak';
+    btn.setAttribute('aria-label', 'Read this reply aloud');
+    btn.appendChild(speakIconTpl.content.cloneNode(true));
+    btn.addEventListener('click', () => speak(text, btn));
+    row.appendChild(btn);
+  }
+
+  // Auto-grow the textarea up to a few lines instead of scrolling inside a
+  // fixed 1-row box.
+  input?.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+  });
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = input?.value.trim();
+    if (!text || !input || !sendBtn) return;
+
+    appendMessage('user', text);
+    history.push({ role: 'user', text });
+    input.value = '';
+    input.style.height = 'auto';
+    sendBtn.disabled = true;
+
+    const pending = appendMessage('model', 'Thinking…');
+    pending?.classList.add('assistant-msg--pending');
+
+    try {
+      const res = await fetch('/api/assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history, currentPage: currentPage() }),
+      });
+      const data = await res.json();
+      const answer = res.ok ? (data.text ?? 'No answer came back.') : (data.error ?? 'Something went wrong.');
+      const pendingText = pending?.querySelector<HTMLElement>('.assistant-msg-text');
+      if (pendingText) pendingText.textContent = answer;
+      pending?.classList.remove('assistant-msg--pending');
+      pending?.classList.toggle('assistant-msg--error', !res.ok);
+      if (res.ok) {
+        history.push({ role: 'model', text: answer });
+        addSpeakButton(pending, answer);
+        if (voiceEnabled) speak(answer);
+      }
+    } catch {
+      const pendingText = pending?.querySelector<HTMLElement>('.assistant-msg-text');
+      if (pendingText) pendingText.textContent = "Couldn't reach the assistant — check your connection.";
+      pending?.classList.remove('assistant-msg--pending');
+      pending?.classList.add('assistant-msg--error');
+    } finally {
+      sendBtn.disabled = false;
+    }
+  });
+
+  // Enter sends, Shift+Enter inserts a newline.
+  input?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      form?.requestSubmit();
+    }
+  });
+
+  // ---------- Voice input (Web Speech API — browser-native speech-to-text,
+  // no server round trip). Feature-detected: the mic button stays hidden in
+  // browsers without it (notably Firefox) rather than offering a dead button. ----------
+  const SpeechRecognitionImpl = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+
+  if (SpeechRecognitionImpl && micBtn) {
+    micBtn.hidden = false;
+    const recognition = new SpeechRecognitionImpl();
+    recognition.lang = document.documentElement.lang || 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    let listening = false;
+    const stopListening = () => {
+      listening = false;
+      micBtn.setAttribute('aria-pressed', 'false');
+    };
+
+    recognition.addEventListener('result', (e: any) => {
+      const transcript = e.results?.[0]?.[0]?.transcript?.trim();
+      if (transcript && input) {
+        input.value = transcript;
+        form?.requestSubmit();
+      }
+    });
+    recognition.addEventListener('end', stopListening);
+    recognition.addEventListener('error', stopListening);
+
+    micBtn.addEventListener('click', () => {
+      if (listening) {
+        recognition.stop();
+        return;
+      }
+      setOpen(true);
+      listening = true;
+      micBtn.setAttribute('aria-pressed', 'true');
+      try {
+        recognition.start();
+      } catch {
+        stopListening();
+      }
+    });
+  }
+</script>
+
+<style>
+  .assistant-fab {
+    position: fixed;
+    right: 1.5rem;
+    bottom: 1.5rem;
+    z-index: 70;
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: var(--accent);
+    color: var(--accent-ink);
+    cursor: pointer;
+    box-shadow: 0 12px 28px -10px hsl(var(--shadow-color) / 0.55);
+  }
+  .assistant-fab:hover {
+    background: var(--accent-strong);
+  }
+  .assistant-fab[aria-expanded='true'] {
+    display: none;
+  }
+  /* The FAB sits in the viewport's bottom-right corner, so the default
+     centered-tooltip positioning (see [data-tooltip] in global.css) runs
+     the tooltip off the right edge — anchor it to the button's right edge
+     instead, same fix as #navbar-show-btn in BaseLayout.astro. */
+  .assistant-fab[data-tooltip]::after {
+    left: auto;
+    right: 0;
+    transform: translateY(4px);
+  }
+  .assistant-fab[data-tooltip]:hover::after,
+  .assistant-fab[data-tooltip]:focus-visible::after {
+    transform: translateY(0);
+  }
+
+  .assistant-panel {
+    position: fixed;
+    right: 1.5rem;
+    bottom: 1.5rem;
+    z-index: 70;
+    width: min(23rem, calc(100vw - 2rem));
+    height: min(32rem, calc(100vh - 3rem));
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 20px 48px -16px hsl(var(--shadow-color) / 0.6);
+    overflow: hidden;
+  }
+
+  .assistant-header {
+    position: relative;
+    padding: 0.9rem 4.3rem 0.7rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-inset);
+  }
+  .assistant-title {
+    font-size: 0.65rem;
+    color: var(--brass);
+    letter-spacing: 0.05em;
+    margin: 0 0 0.25rem;
+  }
+  .assistant-context {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .assistant-close {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .assistant-close:hover {
+    color: var(--accent);
+    background: var(--bg-elevated);
+  }
+  .assistant-voice-toggle {
+    position: absolute;
+    top: 0.5rem;
+    right: 2.35rem;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--ink-faint);
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .assistant-voice-toggle:hover {
+    color: var(--brass);
+  }
+  .assistant-voice-toggle[aria-pressed='true'] {
+    color: var(--accent-ink);
+    background: var(--accent);
+  }
+
+  .assistant-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .assistant-empty {
+    margin: auto;
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.85rem;
+    max-width: 16rem;
+  }
+  .assistant-msg {
+    max-width: 88%;
+    padding: 0.55rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+  }
+  .assistant-msg--user {
+    align-self: flex-end;
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+  .assistant-msg--model {
+    align-self: flex-start;
+    background: var(--bg-inset);
+    color: var(--ink);
+    border: 1px solid var(--border);
+  }
+  .assistant-msg--pending {
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+  .assistant-msg--error {
+    color: var(--accent);
+    font-style: italic;
+    border-color: var(--accent);
+  }
+  .assistant-msg-speak {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-left: 0.35rem;
+    vertical-align: -4px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    opacity: 0.55;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0;
+  }
+  .assistant-msg-speak:hover {
+    opacity: 1;
+  }
+  .assistant-msg-speak:disabled {
+    opacity: 0.3;
+    cursor: wait;
+  }
+
+  .assistant-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-elevated);
+  }
+  .assistant-input {
+    flex: 1;
+    resize: none;
+    max-height: 120px;
+    padding: 0.55rem 0.7rem;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    line-height: 1.4;
+  }
+  .assistant-input:focus {
+    outline: 2px solid var(--brass-bright);
+    outline-offset: 1px;
+  }
+  .assistant-send {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-strong);
+    border-radius: 5px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    cursor: pointer;
+  }
+  .assistant-send:hover {
+    background: var(--accent-strong);
+  }
+  .assistant-send:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
+  .assistant-mic[hidden] {
+    display: none;
+  }
+  .assistant-mic {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--ink-muted);
+    cursor: pointer;
+  }
+  .assistant-mic:hover {
+    border-color: var(--brass);
+    color: var(--brass);
+  }
+  .assistant-mic[aria-pressed='true'] {
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    background: var(--accent);
+    animation: assistant-mic-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes assistant-mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 hsl(var(--shadow-color) / 0); }
+    50% { box-shadow: 0 0 0 6px hsl(var(--shadow-color) / 0.25); }
+  }
+
+  @media (max-width: 480px) {
+    .assistant-fab {
+      right: 1rem;
+      bottom: 1rem;
+    }
+    .assistant-panel {
+      right: 0.5rem;
+      bottom: 0.5rem;
+      width: calc(100vw - 1rem);
+    }
+  }
+</style>

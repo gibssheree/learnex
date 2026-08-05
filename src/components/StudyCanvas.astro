@@ -1,0 +1,231 @@
+---
+import AnnotationToolbar from './AnnotationToolbar.astro';
+
+interface Props {
+  route: string;
+  title: string;
+}
+const { route, title } = Astro.props;
+---
+
+<div id="study-canvas-overlay" class="study-canvas-overlay" data-pagefind-ignore hidden data-route={route}>
+  <div class="study-canvas-shell">
+    <header class="study-canvas-header">
+      <p class="font-pixel study-canvas-title">Study canvas — {title}</p>
+      <button id="study-canvas-close-btn" class="study-canvas-close" type="button" aria-label="Close study canvas">×</button>
+    </header>
+
+    <div class="study-canvas-grid">
+      <aside class="study-canvas-pane study-canvas-reference" id="study-canvas-reference" aria-label="Reference notes"></aside>
+
+      <div class="study-canvas-pane study-canvas-center">
+        <AnnotationToolbar id="study-canvas-toolbar" variant="inline" viewLabel="None" />
+        <div class="study-canvas-canvas-wrap" id="study-canvas-canvas-wrap">
+          <canvas id="study-canvas-drawing" class="study-canvas-drawing"></canvas>
+        </div>
+      </div>
+
+      <aside class="study-canvas-pane study-canvas-assistant-dock" id="study-canvas-assistant-dock" aria-label="Study Assistant"></aside>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { attachAnnotationToolkit, type AnnotationToolkit } from '../lib/annotation-toolkit';
+
+  const overlay = document.getElementById('study-canvas-overlay') as HTMLElement | null;
+  const closeBtn = document.getElementById('study-canvas-close-btn');
+  const referencePane = document.getElementById('study-canvas-reference');
+  const assistantDock = document.getElementById('study-canvas-assistant-dock');
+  const canvas = document.getElementById('study-canvas-drawing') as HTMLCanvasElement | null;
+  const toolbar = document.getElementById('study-canvas-toolbar');
+  const canvasWrap = document.getElementById('study-canvas-canvas-wrap');
+  if (!overlay || !closeBtn || !referencePane || !assistantDock || !canvas || !toolbar || !canvasWrap) {
+    throw new Error('StudyCanvas: missing DOM nodes');
+  }
+
+  let toolkit: AnnotationToolkit | null = null;
+  let assistantHomeParent: Node | null = null;
+  let assistantHomeNext: Node | null = null;
+
+  function fillReferencePane() {
+    // Clone (not move) so the live reader page underneath the overlay stays
+    // fully intact — this is a read-only reference copy, not the real thing.
+    const source = document.querySelector('.vault-prose');
+    if (!source) return;
+    const clone = source.cloneNode(true) as HTMLElement;
+    clone.classList.remove('drop-cap');
+    referencePane!.replaceChildren(clone);
+  }
+
+  function dockAssistant() {
+    const assistantRoot = document.querySelector('.assistant-root') as HTMLElement | null;
+    if (!assistantRoot || assistantRoot.parentElement === assistantDock) return;
+    assistantHomeParent = assistantRoot.parentElement;
+    assistantHomeNext = assistantRoot.nextSibling;
+    assistantDock!.appendChild(assistantRoot);
+    assistantRoot.classList.add('study-canvas-assistant-docked');
+    // Open it in place of the FAB it no longer has room to show.
+    const toggleBtn = assistantRoot.querySelector<HTMLButtonElement>('#assistant-toggle-btn');
+    const panel = assistantRoot.querySelector<HTMLElement>('#assistant-panel');
+    if (toggleBtn && panel?.hidden) toggleBtn.click();
+  }
+
+  function undockAssistant() {
+    const assistantRoot = document.querySelector('.assistant-root') as HTMLElement | null;
+    if (!assistantRoot || !assistantHomeParent) return;
+    assistantRoot.classList.remove('study-canvas-assistant-docked');
+    assistantHomeParent.insertBefore(assistantRoot, assistantHomeNext);
+  }
+
+  function openCanvas() {
+    fillReferencePane();
+    dockAssistant();
+    overlay!.hidden = false;
+    document.body.style.overflow = 'hidden';
+
+    if (!toolkit) {
+      toolkit = attachAnnotationToolkit({
+        canvas: canvas!,
+        toolbar: toolbar!,
+        root: canvasWrap!,
+        storageKey: `${overlay!.dataset.route ?? location.pathname}::canvas`,
+        getActive: () => true,
+      });
+    }
+    toolkit.resize();
+  }
+
+  function closeCanvas() {
+    overlay!.hidden = true;
+    document.body.style.overflow = '';
+    undockAssistant();
+  }
+
+  closeBtn.addEventListener('click', closeCanvas);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay && !overlay.hidden) closeCanvas();
+  });
+  document.addEventListener('learnex:study-canvas-open', ((e: Event) => {
+    const detail = (e as CustomEvent<{ route: string }>).detail;
+    if (detail?.route && detail.route !== (overlay!.dataset.route ?? location.pathname)) return;
+    openCanvas();
+  }) as EventListener);
+  window.addEventListener('resize', () => {
+    if (overlay && !overlay.hidden) toolkit?.resize();
+  });
+</script>
+
+<style>
+  .study-canvas-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 250;
+    background: var(--bg);
+  }
+  .study-canvas-overlay[hidden] {
+    display: none;
+  }
+  .study-canvas-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .study-canvas-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-inset);
+    flex-shrink: 0;
+  }
+  .study-canvas-title {
+    font-size: 0.68rem;
+    color: var(--brass);
+    letter-spacing: 0.04em;
+    margin: 0;
+  }
+  .study-canvas-close {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .study-canvas-close:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .study-canvas-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
+    gap: 1px;
+    background: var(--border);
+    overflow: hidden;
+  }
+  .study-canvas-pane {
+    background: var(--bg-elevated);
+    min-width: 0;
+    overflow-y: auto;
+  }
+
+  .study-canvas-reference {
+    padding: 1.5rem;
+    font-size: 0.85rem;
+  }
+  .study-canvas-reference :global(.vault-prose) {
+    font-size: inherit;
+  }
+
+  .study-canvas-center {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .study-canvas-canvas-wrap {
+    position: relative;
+    flex: 1;
+    background-image: radial-gradient(var(--border) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+  .study-canvas-drawing {
+    position: absolute;
+    inset: 0;
+    display: block;
+    touch-action: none;
+  }
+
+  .study-canvas-assistant-dock {
+    display: flex;
+    flex-direction: column;
+  }
+  :global(.study-canvas-assistant-docked .assistant-fab) {
+    display: none;
+  }
+  :global(.study-canvas-assistant-docked .assistant-panel) {
+    position: static;
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+  }
+
+  @media (max-width: 900px) {
+    .study-canvas-grid {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr);
+      overflow-y: auto;
+    }
+  }
+</style>

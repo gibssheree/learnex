@@ -4,6 +4,8 @@ import TableOfContents from '../components/TableOfContents.astro';
 import CornerFrame from '../components/ornaments/CornerFrame.astro';
 import Medallion from '../components/ornaments/Medallion.astro';
 import PixelIcon from '../components/ornaments/PixelIcon.astro';
+import AnnotationCanvas from '../components/AnnotationCanvas.astro';
+import StudyCanvas from '../components/StudyCanvas.astro';
 
 interface Crumb {
   label: string;
@@ -112,6 +114,7 @@ const issueUrl = 'https://github.com/gibssheree/learnex/issues/new?' + issuePara
             <a href={issueUrl} target="_blank" rel="noopener noreferrer">Spot an error in this note?</a>
           </p>
         </div>
+        <AnnotationCanvas route={Astro.url.pathname} />
       </CornerFrame>
 
       <nav class="leaf-nav" aria-label="Note navigation" data-pagefind-ignore>
@@ -142,6 +145,8 @@ const issueUrl = 'https://github.com/gibssheree/learnex/issues/new?' + issuePara
       </div>
     </aside>
   </div>
+
+  <StudyCanvas route={Astro.url.pathname} title={title} />
 </BaseLayout>
 
 <script>

@@ -1,0 +1,51 @@
+---
+import AnnotationToolbar from './AnnotationToolbar.astro';
+
+interface Props {
+  route: string;
+}
+const { route } = Astro.props;
+---
+
+<div class="annotate-root" data-pagefind-ignore data-route={route}>
+  <AnnotationToolbar id="annotate-toolbar" showExpandButton />
+  <canvas id="annotate-canvas" class="annotate-canvas"></canvas>
+</div>
+
+<script>
+  import { attachAnnotationToolkit } from '../lib/annotation-toolkit';
+
+  const root = document.querySelector('.annotate-root') as HTMLElement | null;
+  const canvas = document.getElementById('annotate-canvas') as HTMLCanvasElement | null;
+  const toolbar = document.getElementById('annotate-toolbar');
+  if (!root || !canvas || !toolbar) throw new Error('AnnotationCanvas: missing DOM nodes');
+
+  const route = root.dataset.route ?? location.pathname;
+
+  attachAnnotationToolkit({
+    canvas,
+    toolbar,
+    root,
+    storageKey: route,
+    getActive: () => document.documentElement.getAttribute('data-ipad-mode') === 'on',
+  });
+
+  toolbar.querySelector('.annotate-expand-btn')?.addEventListener('click', () => {
+    document.dispatchEvent(new CustomEvent('learnex:study-canvas-open', { detail: { route } }));
+  });
+</script>
+
+<style>
+  .annotate-root {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+  }
+  .annotate-canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    pointer-events: none;
+    touch-action: none;
+  }
+</style>
