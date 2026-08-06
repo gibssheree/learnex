@@ -234,6 +234,21 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   .mastery-radial-wrap[hidden] {
     display: none;
   }
+  /* The radial packs every group in as a fanned-out label around a ring —
+     at up to ~40 leaves (languages + CS domains + the standalone knowledge
+     domains combined) it reads fine at full width, but scaled down to a
+     phone screen the labels overlap into an unreadable smear. The card
+     grids below already show the same numbers per group in a form that
+     just reflows instead of shrinking, so below this width they're the
+     whole story rather than a fallback. */
+  @media (max-width: 640px) {
+    .mastery-radial-wrap {
+      display: none !important;
+    }
+    .mastery-page {
+      padding: 1.25rem 1rem 3rem;
+    }
+  }
   .mastery-radial {
     width: 100%;
     max-width: 34rem;

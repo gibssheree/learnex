@@ -498,6 +498,13 @@ import NavbarScene from './NavbarScene.astro';
   .search-slot {
     position: relative;
     flex: 1;
+    /* A flex item's automatic minimum width is its content's min-content
+       size, and a bare <input> has a stubborn browser-default intrinsic
+       width (historically ~170-200px) that resists shrinking below it —
+       without this override, that alone can force the whole toolbar row
+       wider than the viewport on a narrow phone regardless of how much
+       else in the row is trimmed. */
+    min-width: 0;
     max-width: 32rem;
     display: flex;
     align-items: center;
@@ -801,21 +808,66 @@ import NavbarScene from './NavbarScene.astro';
        to roughly match .toolbar-group's own 0.5rem icon spacing instead. */
     margin-left: -1rem;
   }
-  .icon-moon {
+  /* :global() has to wrap the WHOLE selector, not just the [data-theme]
+     part — .icon-sun/.icon-moon are rendered by the child PixelIcon
+     component, not authored directly in this file, so Astro never stamps
+     its scoping attribute onto them. A partially-scoped selector here
+     (`:global([data-theme='dark']) .icon-sun`) compiles to a rule that can
+     never match anything, which silently left both icons visible at once
+     — a real width cost on top of just being visually wrong. */
+  :global(.icon-moon) {
     display: none;
   }
-  :global([data-theme='dark']) .icon-sun {
+  :global([data-theme='dark'] .icon-sun) {
     display: none;
   }
-  :global([data-theme='dark']) .icon-moon {
+  :global([data-theme='dark'] .icon-moon) {
     display: block;
   }
   @media (prefers-color-scheme: dark) {
-    :global(html:not([data-theme='light'])) .icon-sun {
+    :global(html:not([data-theme='light']) .icon-sun) {
       display: none;
     }
-    :global(html:not([data-theme='light'])) .icon-moon {
+    :global(html:not([data-theme='light']) .icon-moon) {
       display: block;
+    }
+  }
+
+  /* Phone-width toolbar — the row above (wordmark, search, ~9 toolbar
+     buttons, theme toggle, about link) never wraps, so past a certain point
+     it has to actually shed weight instead of just shrinking: this was
+     overflowing the viewport itself (not just looking cramped) down to
+     roughly double the screen width on a 375px phone, which corrupted
+     layout for every other fixed/full-width element on the page, not just
+     the header. Priority kept: search, and the four highest-traffic
+     actions (graph, review, random note, bookmarks). Everything hidden
+     here has an equivalent reachable elsewhere — About is also linked from
+     the homepage, iPad Mode doesn't apply to a phone, and hiding the
+     navbar is a screen-space convenience that matters far less on a
+     device this narrow than the toolbar space it costs.
+
+     Deliberately placed last in this stylesheet, not just inside its own
+     media query: `.about-btn` shares equal specificity with `.tool-btn`
+     (which sets `display: flex`), and CSS breaks that kind of tie by
+     source order, not by which rule "sounds like" the override — earlier
+     in the file, this block's `display: none` silently lost to
+     `.tool-btn`'s later declaration despite the media query correctly
+     matching. Last-in-file is what actually makes it win. */
+  @media (max-width: 640px) {
+    .site-header-row {
+      gap: 0.5rem;
+      padding: 0.5rem 0.65rem;
+    }
+    .wordmark-text {
+      display: none;
+    }
+    .wordmark-logo {
+      height: 32px;
+    }
+    .about-btn,
+    #ipad-mode-toggle-btn,
+    #navbar-hide-btn {
+      display: none;
     }
   }
 </style>

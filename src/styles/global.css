@@ -431,16 +431,32 @@ code, pre, kbd {
    Applies to any coarse-pointer device (real touch/Pencil hardware), not
    gated behind iPad Mode — undersized tap targets are a usability bug on
    touch regardless of whether the user has opted into the annotation/pencil
-   features. ~44px follows Apple's HIG minimum hit-target guidance. */
+   features. ~44px follows Apple's HIG minimum hit-target guidance.
+
+   `!important` is load-bearing here, not decoration: every selector below
+   also has its own scoped rule inside its component (e.g. Header.astro's
+   `.tool-btn { min-width: 38px }`), and Astro compiles scoped component
+   styles down to `.tool-btn[data-astro-cid-xxxxx]` — one more attribute
+   selector than this plain global rule has, so without `!important` the
+   component's own (smaller, desktop-oriented) size always won regardless
+   of this media query, on every browser, 100% of the time. */
 @media (pointer: coarse) {
   .tool-btn,
   .theme-toggle,
   .bookmark-toggle,
   .print-toggle,
   .sidebar-collapse-btn,
-  .mobile-nav-toggle {
-    min-width: 44px;
-    min-height: 44px;
+  .mobile-nav-toggle,
+  .navbar-show-btn,
+  .bookmark-remove,
+  .text-size-option,
+  .assistant-settings-btn,
+  .assistant-close,
+  .assistant-msg-speak,
+  .study-canvas-close,
+  .study-canvas-diagram-close {
+    min-width: 44px !important;
+    min-height: 44px !important;
   }
   .nav-group > summary,
   .nav-subgroup > summary,
