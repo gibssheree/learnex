@@ -31,6 +31,7 @@ export const STATIC_COMMANDS: Command[] = [
   { id: 'open-progress', label: 'Buka Progress (Mastery Map)', keywords: 'mastery badge skill tree', section: 'Navigasi', run: () => { window.location.href = '/progress'; } },
   { id: 'open-search', label: 'Buka halaman Search', section: 'Navigasi', run: () => { window.location.href = '/search'; } },
   { id: 'open-about', label: 'Buka About Learnex', section: 'Navigasi', run: () => { window.location.href = '/about'; } },
+  { id: 'open-api', label: 'Buka dokumentasi API', keywords: 'json endpoint developer agent', section: 'Navigasi', run: () => { window.location.href = '/api'; } },
   { id: 'random-note', label: 'Buka catatan acak', keywords: 'surprise dice random', section: 'Navigasi', run: () => clickById('random-note-btn') },
 
   { id: 'toggle-theme', label: 'Ganti tema Cream / Dark', keywords: 'dark light mode terang gelap', section: 'Tampilan', run: () => clickById('theme-toggle') },

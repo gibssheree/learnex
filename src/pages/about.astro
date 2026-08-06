@@ -57,6 +57,14 @@ const termCount = terms.filter((t) => !t.data.isMoc).length;
             itself.
           </p>
 
+          <h2>Reading it from outside a browser</h2>
+          <p>
+            Every note here is also available as plain JSON — no key, no account — at
+            <a href="/api">/api</a>. It exists mainly for scripts and AI agents that want the
+            vault's actual markdown rather than scraped HTML, but it's just as usable from a
+            terminal with <code>curl</code>.
+          </p>
+
           <h2>What's in it, and what's coming</h2>
           <p>
             Right now the archive holds {languageCount} programming language notes and {termCount}

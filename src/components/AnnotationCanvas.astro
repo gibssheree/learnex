@@ -40,6 +40,18 @@ const { route } = Astro.props;
     position: absolute;
     inset: 0;
     z-index: 5;
+    /* This wrapper spans the entire note body (inset: 0), sitting above
+       .vault-prose in paint order. Without this, it silently captures every
+       click/hover/text-selection across the whole note — even with no tool
+       selected and outside iPad mode — because an absolutely positioned div
+       defaults to pointer-events: auto. The toolbar
+       (.annotate-toolbar--floating, shown only in iPad mode) and the canvas
+       itself (toggled by annotation-toolkit.ts's syncInteractivity(), only
+       while a drawing tool is active) each explicitly opt back into
+       pointer-events: auto on themselves, so this doesn't block drawing or
+       the toolbar — only restores normal interaction with the note text
+       the rest of the time, which is the actual common case. */
+    pointer-events: none;
   }
   .annotate-canvas {
     position: absolute;

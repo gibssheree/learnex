@@ -1,0 +1,146 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import CornerFrame from '../../components/ornaments/CornerFrame.astro';
+
+const languages = await getCollection('languages');
+const terms = await getCollection('terms');
+const languageCount = languages.filter((l) => !l.data.isMoc).length;
+const termCount = terms.filter((t) => !t.data.isMoc).length;
+---
+
+<BaseLayout
+  title="API"
+  description="A public, read-only JSON API over the Learnex vault — for scripts, tools, and AI agents, not just the browser."
+>
+  <div class="api-page">
+    <CornerFrame class="page-leaf">
+      <div class="page-leaf-inner">
+        <header class="api-header">
+          <h1>Learnex API</h1>
+        </header>
+
+        <div class="vault-prose drop-cap">
+          <p>
+            Everything in this archive — {languageCount} language notes and {termCount} term
+            notes — is already public, static content. These three endpoints just expose it as
+            structured JSON instead of HTML, so a script, tool, or AI agent can read the vault
+            directly instead of scraping rendered pages. Read-only, no API key, no account.
+          </p>
+
+          <h2>GET /api/v1/notes.json</h2>
+          <p>Every note in the vault, with its route and light metadata. No query parameters.</p>
+          <pre><code>curl https://learnex.example/api/v1/notes.json</code></pre>
+          <pre><code>{`{
+  "count": 425,
+  "notes": [
+    {
+      "route": "/languages/python",
+      "title": "Python",
+      "collection": "languages",
+      "category": "Scripting/Dynamic",
+      "tags": [...],
+      "summary": "A high-level, interpreted, general-purpose language..."
+    },
+    {
+      "route": "/terms/full-stack/rest-api",
+      "title": "REST API",
+      "collection": "terms",
+      "domain": "Full-Stack",
+      "tags": [...],
+      "summary": "..."
+    }
+  ]
+}`}</code></pre>
+
+          <h2>GET /api/v1/notes/&lbrace;route&rbrace;.json</h2>
+          <p>
+            One note's full content, including its raw markdown body (with <code>[[wikilinks]]</code>
+            already resolved to real routes). The path mirrors the site's own URLs — take any
+            page route and append <code>.json</code> under <code>/api/v1/notes</code>.
+          </p>
+          <pre><code>curl https://learnex.example/api/v1/notes/languages/python.json
+curl https://learnex.example/api/v1/notes/terms/full-stack/rest-api.json</code></pre>
+          <pre><code>{`{
+  "route": "/languages/python",
+  "title": "Python",
+  "collection": "languages",
+  "domain": "Programming Languages",
+  "category": "Scripting/Dynamic",
+  "tags": [...],
+  "summary": "...",
+  "markdown": "**Definition:** ...\\n\\n## How It Works\\n..."
+}`}</code></pre>
+
+          <h2>GET /api/v1/search.json?q=&lbrace;query&rbrace;</h2>
+          <p>
+            Matches against note titles, summaries, and tags — not a full-text body search.
+            (This deliberately isn't a wrapper around the site's own <a href="https://pagefind.app" target="_blank" rel="noopener">Pagefind</a>
+            index: that index is built for the browser after the production build, not for a
+            server function to query at request time. Good enough for "find notes about X";
+            read a note's own <code>markdown</code> field via the endpoint above for real content.)
+          </p>
+          <pre><code>curl "https://learnex.example/api/v1/search.json?q=rest+api"</code></pre>
+          <pre><code>{`{
+  "query": "rest api",
+  "count": 3,
+  "results": [
+    { "route": "/terms/full-stack/rest-api", "title": "REST API", "summary": "..." },
+    ...
+  ]
+}`}</code></pre>
+
+          <h2>Rate limits</h2>
+          <p>
+            60 requests per minute per IP, tracked in memory on whichever server instance
+            handles the request — best-effort, not a hard distributed guarantee (see the
+            <code>X-RateLimit-Remaining</code> response header). Exceeding it returns
+            <code>429</code> with a <code>Retry-After</code> header. No API key exists today;
+            one may get added later if this needs tightening, not before.
+          </p>
+
+          <h2>CORS</h2>
+          <p>
+            All three endpoints send <code>Access-Control-Allow-Origin: *</code> — call them
+            directly from browser JavaScript on any origin, not just server-side.
+          </p>
+        </div>
+      </div>
+    </CornerFrame>
+  </div>
+</BaseLayout>
+
+<style>
+  .api-page {
+    max-width: 52rem;
+    margin: 0 auto;
+    padding: 2.5rem 2rem 6rem;
+  }
+  .page-leaf-inner {
+    padding: 3.5rem 2.5rem;
+  }
+  .api-header {
+    max-width: 40rem;
+    margin: 0 auto 1.75rem;
+  }
+  .api-header h1 {
+    font-size: 2.15rem;
+    margin: 0;
+  }
+  .vault-prose pre {
+    max-width: 40rem;
+    margin: 0 auto 1.2rem;
+  }
+
+  @media (max-width: 640px) {
+    .api-page {
+      padding: 1.25rem 1rem 3rem;
+    }
+    .page-leaf-inner {
+      padding: 1.75rem 1.35rem;
+    }
+    .api-header h1 {
+      font-size: 1.6rem;
+    }
+  }
+</style>

@@ -50,6 +50,11 @@ async function syncCollection(context: LoaderContext, collection: 'languages' | 
         tags: Array.isArray(frontmatter.tags) ? (frontmatter.tags as string[]) : [],
       },
       digest,
+      // Wikilinks resolved, sandbox placeholders NOT injected — this is the
+      // note's real markdown content, meant for entry.body consumers like
+      // src/pages/api/v1/notes/[...route].json.ts, not for HTML rendering
+      // (that's `rendered`, built from sandboxedBody below).
+      body: linkedBody,
       rendered,
     });
   }
