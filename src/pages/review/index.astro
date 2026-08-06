@@ -24,6 +24,11 @@ import CornerFrame from '../../components/ornaments/CornerFrame.astro';
             <p class="review-face-label font-pixel">Question</p>
             <h2 id="review-front" class="review-front"></h2>
 
+            <div id="review-nudge" class="review-nudge" hidden>
+              <p class="review-nudge-label font-pixel">Sering meleset — mungkin baca ini dulu</p>
+              <div id="review-nudge-links" class="review-nudge-links"></div>
+            </div>
+
             <div id="review-back-wrap" hidden>
               <div class="review-divider"></div>
               <p class="review-face-label font-pixel">Answer</p>
@@ -77,6 +82,7 @@ import CornerFrame from '../../components/ornaments/CornerFrame.astro';
     route: string;
     title: string;
     summary: string;
+    related: { route: string; title: string }[];
   }
 
   const loadingEl = document.getElementById('review-loading');
@@ -87,6 +93,8 @@ import CornerFrame from '../../components/ornaments/CornerFrame.astro';
   const progressEl = document.getElementById('review-progress');
 
   const frontEl = document.getElementById('review-front');
+  const nudgeEl = document.getElementById('review-nudge');
+  const nudgeLinksEl = document.getElementById('review-nudge-links');
   const backWrap = document.getElementById('review-back-wrap');
   const backEl = document.getElementById('review-back');
   const showBtn = document.getElementById('review-show-btn');
@@ -94,6 +102,27 @@ import CornerFrame from '../../components/ornaments/CornerFrame.astro';
   const againBtn = document.getElementById('review-again-btn');
 
   const MAX_SESSION = 25;
+
+  // ── "Read this first" nudge ─────────────────────────────────────────────
+  // A separate, additive localStorage map (not part of CardState in
+  // srs-client.ts) counting consecutive "again" grades per route, so a card
+  // that keeps failing can point at a prerequisite without touching the
+  // SM-2 scheduler's own state shape. Resets the moment a card succeeds.
+  const AGAIN_STREAK_KEY = 'learnex-srs-again-streak';
+  const NUDGE_THRESHOLD = 3;
+
+  function loadAgainStreaks(): Record<string, number> {
+    try {
+      return JSON.parse(localStorage.getItem(AGAIN_STREAK_KEY) ?? '{}');
+    } catch {
+      return {};
+    }
+  }
+  function saveAgainStreaks(streaks: Record<string, number>) {
+    localStorage.setItem(AGAIN_STREAK_KEY, JSON.stringify(streaks));
+  }
+
+  const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   async function init() {
     const res = await fetch('/flashcards-index.json');
@@ -140,6 +169,16 @@ import CornerFrame from '../../components/ornaments/CornerFrame.astro';
       gradeWrap?.setAttribute('hidden', '');
       showBtn?.removeAttribute('hidden');
       if (progressEl) progressEl.textContent = `${idx + 1} / ${queue.length}`;
+
+      const streak = loadAgainStreaks()[card.route] ?? 0;
+      if (nudgeEl && nudgeLinksEl) {
+        if (streak >= NUDGE_THRESHOLD && card.related.length > 0) {
+          nudgeLinksEl.innerHTML = card.related.map((r) => `<a href="${r.route}">${escapeHtml(r.title)}</a>`).join('');
+          nudgeEl.hidden = false;
+        } else {
+          nudgeEl.hidden = true;
+        }
+      }
     }
 
     showBtn?.addEventListener('click', () => {
@@ -154,6 +193,12 @@ import CornerFrame from '../../components/ornaments/CornerFrame.astro';
         const card = queue[idx];
         const newState = gradeCard(states[card.route], card.route, g);
         saveState(states, newState);
+
+        const streaks = loadAgainStreaks();
+        if (g === 'again') streaks[card.route] = (streaks[card.route] ?? 0) + 1;
+        else delete streaks[card.route];
+        saveAgainStreaks(streaks);
+
         studied++;
         idx++;
         showCard();
@@ -246,6 +291,41 @@ import CornerFrame from '../../components/ornaments/CornerFrame.astro';
     font-size: 1.6rem;
     margin: 0 0 0.5rem;
   }
+  .review-nudge {
+    margin: 0.75rem auto 0;
+    max-width: 28rem;
+    padding: 0.6rem 0.9rem;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    text-align: left;
+  }
+  .review-nudge-label {
+    margin: 0 0 0.4rem;
+    font-size: 0.6rem;
+    color: var(--brass);
+    letter-spacing: 0.04em;
+  }
+  .review-nudge-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .review-nudge-links :global(a) {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    text-decoration: none;
+  }
+  .review-nudge-links :global(a:hover) {
+    color: var(--accent);
+    border-color: var(--brass);
+  }
+
   .review-divider {
     width: 3rem;
     height: 1px;

@@ -27,7 +27,7 @@ import NavbarScene from './NavbarScene.astro';
     </div>
 
     <div class="toolbar-group">
-      <a href="/graph" class="tool-btn" aria-label="Knowledge graph" data-tooltip="Knowledge graph — every note, connected" data-tooltip-pos="bottom">
+      <a href="/graph" class="tool-btn" aria-label="Knowledge graph" data-tooltip="Knowledge graph" data-tooltip-pos="bottom">
         <PixelIcon name="graph" size={16} />
       </a>
 
@@ -36,8 +36,19 @@ import NavbarScene from './NavbarScene.astro';
         <span id="review-due-count" class="tool-badge" hidden>0</span>
       </a>
 
-      <button id="random-note-btn" class="tool-btn" type="button" aria-label="Open a random note" data-tooltip="Surprise me — random note" data-tooltip-pos="bottom">
+      <button id="random-note-btn" class="tool-btn" type="button" aria-label="Open a random note" data-tooltip="Surprise me" data-tooltip-pos="bottom">
         <PixelIcon name="dice" size={16} />
+      </button>
+
+      <button
+        id="command-palette-btn"
+        class="tool-btn tool-btn-text"
+        type="button"
+        aria-label="Command palette"
+        data-tooltip="Command palette (Ctrl+K)"
+        data-tooltip-pos="bottom"
+      >
+        ⌘K
       </button>
 
       <div class="tool-popover-wrap">
@@ -96,7 +107,7 @@ import NavbarScene from './NavbarScene.astro';
         type="button"
         aria-label="Toggle iPad mode"
         aria-pressed="false"
-        data-tooltip="iPad mode — touch UI &amp; Pencil annotation"
+        data-tooltip="iPad mode"
         data-tooltip-pos="bottom"
       >
         <PixelIcon name="tablet" size={16} />
@@ -141,6 +152,7 @@ import NavbarScene from './NavbarScene.astro';
   import { getBookmarks, removeBookmark } from '../lib/bookmarks-client';
   import { getDueCount } from '../lib/srs-client';
   import { getPagefind } from '../lib/pagefind-client';
+  import { getNotesIndex } from '../lib/notes-index-client';
 
   const reviewDueEl = document.getElementById('review-due-count');
   if (reviewDueEl) {
@@ -242,24 +254,16 @@ import NavbarScene from './NavbarScene.astro';
   });
 
   // ---------- Random note ----------
-  let randomIndexPromise: Promise<{ title: string; url: string }[]> | null = null;
-  function getRandomIndex() {
-    if (!randomIndexPromise) {
-      randomIndexPromise = fetch('/random-index.json')
-        .then((r) => r.json())
-        .catch(() => []);
-    }
-    return randomIndexPromise;
-  }
   const randomBtn = document.getElementById('random-note-btn') as HTMLButtonElement | null;
   randomBtn?.addEventListener('click', async () => {
-    // Only the very first click is ever slow (index fetch gets memoized in
-    // getRandomIndex above), but that first one can still take a beat on a
-    // slow connection — a busy state beats a click that looks like nothing.
+    // Only the very first click is ever slow (the index fetch is memoized in
+    // getNotesIndex, shared with the command palette's note search), but
+    // that first one can still take a beat on a slow connection — a busy
+    // state beats a click that looks like nothing.
     randomBtn.setAttribute('aria-busy', 'true');
     randomBtn.disabled = true;
     try {
-      const list = await getRandomIndex();
+      const list = await getNotesIndex();
       if (!list.length) return;
       const pick = list[Math.floor(Math.random() * list.length)];
       window.location.href = pick.url;
@@ -267,6 +271,11 @@ import NavbarScene from './NavbarScene.astro';
       randomBtn.removeAttribute('aria-busy');
       randomBtn.disabled = false;
     }
+  });
+
+  // ---------- Command palette trigger ----------
+  document.getElementById('command-palette-btn')?.addEventListener('click', () => {
+    document.dispatchEvent(new CustomEvent('learnex:command-palette-open'));
   });
 
   // ---------- Popovers (bookmarks + text size) ----------

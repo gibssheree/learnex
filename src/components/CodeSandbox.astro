@@ -1,0 +1,169 @@
+---
+// No template of its own — mounted once per note page (ReaderLayout.astro),
+// this only enhances the <div data-lx-sandbox> placeholders that
+// src/lib/sandbox-markdown.ts already wrote directly into the note's
+// rendered HTML (see that file for why raw-HTML injection at the markdown
+// level, not a rehype/client hook on the code fence itself).
+---
+
+<script>
+  import { runJavaScript, runPython, type RunHandle, type RunResult } from '../lib/sandbox-runners';
+
+  const LANG_LABEL: Record<string, string> = { js: 'JavaScript', python: 'Python' };
+
+  function decodeBase64Utf8(b64: string): string {
+    try {
+      const binary = atob(b64);
+      const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+      return new TextDecoder('utf-8').decode(bytes);
+    } catch {
+      return '';
+    }
+  }
+
+  function enhance(root: HTMLElement) {
+    const lang = root.dataset.lang === 'python' ? 'python' : 'js';
+    const code = decodeBase64Utf8(root.dataset.code || '');
+
+    root.innerHTML = `
+      <div class="lx-sandbox-toolbar">
+        <span class="lx-sandbox-lang font-pixel">${LANG_LABEL[lang]}</span>
+        <button type="button" class="lx-sandbox-run">Run</button>
+        <button type="button" class="lx-sandbox-stop" hidden>Stop</button>
+      </div>
+      <pre class="lx-sandbox-code"><code></code></pre>
+      <pre class="lx-sandbox-output" hidden></pre>
+    `;
+    // textContent, not innerHTML — the code came from the note's own
+    // markdown (author-controlled either way), but there's no reason to
+    // parse it as HTML when displaying it.
+    root.querySelector('.lx-sandbox-code code')!.textContent = code;
+
+    const runBtn = root.querySelector<HTMLButtonElement>('.lx-sandbox-run')!;
+    const stopBtn = root.querySelector<HTMLButtonElement>('.lx-sandbox-stop')!;
+    const outputEl = root.querySelector<HTMLElement>('.lx-sandbox-output')!;
+
+    let handle: RunHandle | null = null;
+
+    function setRunning(running: boolean) {
+      runBtn.disabled = running;
+      stopBtn.hidden = !running;
+    }
+
+    function finish(result: RunResult) {
+      handle = null;
+      setRunning(false);
+      outputEl.hidden = false;
+      outputEl.classList.remove('lx-sandbox-output--error', 'lx-sandbox-output--stopped');
+      if (result.stopped) {
+        outputEl.textContent = `${result.output ? `${result.output}\n` : ''}⏹ Dihentikan.`;
+        outputEl.classList.add('lx-sandbox-output--stopped');
+      } else if (result.error) {
+        outputEl.textContent = `${result.output ? `${result.output}\n` : ''}Error: ${result.error}`;
+        outputEl.classList.add('lx-sandbox-output--error');
+      } else {
+        outputEl.textContent = result.output || '(tidak ada output)';
+      }
+    }
+
+    runBtn.addEventListener('click', () => {
+      if (handle) return;
+      outputEl.hidden = false;
+      outputEl.classList.remove('lx-sandbox-output--error', 'lx-sandbox-output--stopped');
+      outputEl.textContent = lang === 'python' ? 'Memuat Python (Pyodide)…' : 'Menjalankan…';
+      setRunning(true);
+      handle =
+        lang === 'python'
+          ? runPython(code, finish, (status) => {
+              outputEl.textContent =
+                status === 'loading' ? 'Memuat Python (Pyodide, ±10 MB, sekali saja per sesi tab)…' : 'Menjalankan…';
+            })
+          : runJavaScript(code, finish);
+    });
+
+    stopBtn.addEventListener('click', () => handle?.stop());
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-lx-sandbox]').forEach(enhance);
+</script>
+
+<style>
+  :global(.lx-sandbox) {
+    margin: 1.25rem 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  :global(.lx-sandbox-toolbar) {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.7rem;
+    background: var(--bg-inset);
+    border-bottom: 1px solid var(--border);
+  }
+  :global(.lx-sandbox-lang) {
+    font-size: 0.62rem;
+    color: var(--brass);
+    letter-spacing: 0.05em;
+    margin-right: auto;
+  }
+  :global(.lx-sandbox-run),
+  :global(.lx-sandbox-stop) {
+    padding: 0.3rem 0.75rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+  }
+  :global(.lx-sandbox-run) {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+  }
+  :global(.lx-sandbox-run:hover) {
+    background: var(--accent-strong);
+  }
+  :global(.lx-sandbox-run:disabled) {
+    opacity: 0.55;
+    cursor: wait;
+  }
+  :global(.lx-sandbox-stop) {
+    background: transparent;
+    color: var(--ink-muted);
+  }
+  :global(.lx-sandbox-stop:hover) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  :global(.lx-sandbox-code) {
+    margin: 0;
+    padding: 0.85rem 1rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--ink);
+  }
+  :global(.lx-sandbox-output) {
+    margin: 0;
+    padding: 0.7rem 1rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-inset);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    color: var(--ink-muted);
+  }
+  :global(.lx-sandbox-output--error) {
+    color: var(--accent);
+  }
+  :global(.lx-sandbox-output--stopped) {
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+</style>

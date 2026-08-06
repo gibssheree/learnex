@@ -290,6 +290,16 @@ export const PIXEL_ICONS: Record<string, string[]> = {
     '00110000',
     '00010000',
   ],
+  badge: [
+    '00111100',
+    '01111110',
+    '11100111',
+    '11111111',
+    '11100111',
+    '01111110',
+    '00111100',
+    '00011000',
+  ],
 };
 
 export type PixelIconName = keyof typeof PIXEL_ICONS;

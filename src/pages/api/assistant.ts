@@ -1,13 +1,14 @@
 import type { APIRoute } from 'astro';
-import { GoogleGenAI, FunctionCallingConfigMode, type FunctionDeclaration } from '@google/genai';
+import { GoogleGenAI, FunctionCallingConfigMode, ThinkingLevel, type FunctionDeclaration } from '@google/genai';
 import { searchVault } from '../../lib/rag';
+import { DIAGRAM_INSTRUCTION, PERSONA_INSTRUCTIONS, isPersona, type Persona } from '../../lib/ai-personas';
 
 // Server-rendered on demand (everything else in the site stays static) —
 // this is the one route that needs a live request/response cycle to talk to
 // Gemini. Requires the @astrojs/vercel adapter configured in astro.config.mjs.
 export const prerender = false;
 
-const CHAT_MODEL = 'gemini-2.5-flash';
+const CHAT_MODEL = 'gemini-3.6-flash';
 const EMBEDDING_MODEL = 'gemini-embedding-2';
 const MAX_TOOL_ROUNDS = 4;
 
@@ -43,11 +44,13 @@ async function embedQuery(text: string): Promise<number[]> {
   return vector;
 }
 
-function systemInstruction(currentPage?: CurrentPage): string {
+function systemInstruction(currentPage?: CurrentPage, persona: Persona = 'direct'): string {
   return [
     'You are the Learnex Study Assistant, embedded in a personal programming/CS knowledge-vault site.',
     "Use the search_vault function whenever you need a specific fact, definition, or example from the vault — don't guess at vault-specific content.",
-    'Keep answers concise and study-focused. When you rely on a note, mention its title so the reader knows where it came from.',
+    'Keep answers study-focused. When you rely on a note, mention its title so the reader knows where it came from.',
+    PERSONA_INSTRUCTIONS[persona],
+    DIAGRAM_INSTRUCTION,
     currentPage ? `The user is currently reading: "${currentPage.title}" (${currentPage.route}).` : '',
   ]
     .filter(Boolean)
@@ -59,7 +62,7 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ error: 'GEMINI_API_KEY is not configured on the server.' }, 500);
   }
 
-  let body: { messages?: ChatMessage[]; currentPage?: CurrentPage };
+  let body: { messages?: ChatMessage[]; currentPage?: CurrentPage; persona?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -68,6 +71,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   const messages = body.messages ?? [];
   if (messages.length === 0) return json({ error: 'messages must be a non-empty array.' }, 400);
+  const persona: Persona = isPersona(body.persona) ? body.persona : 'direct';
 
   // The Gemini `contents` array: a running list of role-tagged turns. User/
   // model text turns come straight from the client; function-call and
@@ -84,9 +88,15 @@ export const POST: APIRoute = async ({ request }) => {
         model: CHAT_MODEL,
         contents: contents as never,
         config: {
-          systemInstruction: systemInstruction(body.currentPage),
+          systemInstruction: systemInstruction(body.currentPage, persona),
           tools: [{ functionDeclarations: [searchVaultDeclaration] }],
           toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } },
+          // Use minimal thinking for the RAG loop — these are focused
+          // retrieval queries, not deep-reasoning tasks. MINIMAL keeps
+          // latency low while satisfying Gemini 3.x's thinkingLevel
+          // requirement (thinkingBudget is Gemini 2.x-only and triggers
+          // INVALID_ARGUMENT on 3.x models).
+          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
         },
       });
 
@@ -105,7 +115,17 @@ export const POST: APIRoute = async ({ request }) => {
           }))
         : [];
 
-      contents.push({ role: 'model', parts: [{ functionCall: call }] });
+      // IMPORTANT: push the full verbatim model Content object (not a
+      // reconstructed one). Gemini 3.x thinking models embed a signed
+      // `thought` part alongside `functionCall` — if we reconstruct the
+      // content manually we lose the thought_signature and the next API
+      // call returns 400 INVALID_ARGUMENT.
+      const modelContent = response.candidates?.[0]?.content;
+      if (modelContent) {
+        contents.push(modelContent);
+      } else {
+        contents.push({ role: 'model', parts: [{ functionCall: call }] });
+      }
       contents.push({ role: 'user', parts: [{ functionResponse: { name: call.name, response: { results } } }] });
     }
 

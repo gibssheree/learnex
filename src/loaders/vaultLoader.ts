@@ -11,6 +11,7 @@ import {
   resolveWikilinks,
   type VaultFile,
 } from '../lib/vault';
+import { injectCodeSandboxes } from '../lib/sandbox-markdown';
 
 interface VaultLoaderOptions {
   collection: 'languages' | 'terms';
@@ -30,7 +31,8 @@ async function syncCollection(context: LoaderContext, collection: 'languages' | 
   for (const file of files) {
     const { frontmatter, body } = readNote(file);
     const { text: linkedBody, links } = resolveWikilinks(body, linkMap);
-    const rendered = await renderMarkdown(linkedBody);
+    const sandboxedBody = injectCodeSandboxes(linkedBody);
+    const rendered = await renderMarkdown(sandboxedBody);
     const digest = generateDigest({ frontmatter, body });
 
     store.set({

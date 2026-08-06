@@ -1,0 +1,314 @@
+---
+import PixelIcon from './ornaments/PixelIcon.astro';
+---
+
+<div id="command-palette-overlay" class="cmdk-overlay" hidden data-pagefind-ignore>
+  <div class="cmdk-box" role="dialog" aria-modal="true" aria-label="Command palette">
+    <div class="cmdk-input-row">
+      <PixelIcon name="search" size={14} class="cmdk-input-icon" />
+      <input
+        id="command-palette-input"
+        class="cmdk-input"
+        type="text"
+        placeholder="Cari catatan atau ketik perintah…"
+        aria-label="Command palette"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <kbd class="cmdk-esc">Esc</kbd>
+    </div>
+    <div id="command-palette-results" class="cmdk-results" role="listbox"></div>
+  </div>
+</div>
+
+<script>
+  import { STATIC_COMMANDS } from '../lib/commands';
+  import { getNotesIndex, type NoteIndexEntry } from '../lib/notes-index-client';
+
+  interface Row {
+    label: string;
+    section: string;
+    run: () => void;
+  }
+
+  const overlay = document.getElementById('command-palette-overlay') as HTMLElement | null;
+  const box = overlay?.querySelector('.cmdk-box') as HTMLElement | null;
+  const input = document.getElementById('command-palette-input') as HTMLInputElement | null;
+  const resultsEl = document.getElementById('command-palette-results');
+  if (!overlay || !box || !input || !resultsEl) throw new Error('CommandPalette: missing DOM nodes');
+
+  // Preloaded once at module scope (shared with Header.astro's "random
+  // note" button via the same memoized fetch) so the first keystroke isn't
+  // stuck waiting on a network round trip.
+  let notesIndex: NoteIndexEntry[] = [];
+  getNotesIndex().then((list) => { notesIndex = list; });
+
+  const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  /** Higher is better; -1 means "no match". Prefix matches rank above
+   * mid-string matches; shorter candidates rank above longer ones at an
+   * equal match position, so "Go" beats "Go Testing Frameworks" for query
+   * "go". Good enough for a few hundred titles typed by hand — no need for
+   * a real fuzzy-match library at this scale. */
+  function matchScore(query: string, text: string): number {
+    const q = query.trim().toLowerCase();
+    if (!q) return 0;
+    const t = text.toLowerCase();
+    const idx = t.indexOf(q);
+    if (idx === -1) return -1;
+    return (idx === 0 ? 1000 : 500 - idx) - text.length * 0.1;
+  }
+
+  function groupedDefaultRows(): Row[] {
+    return STATIC_COMMANDS.filter((c) => !c.available || c.available()).map((c) => ({
+      label: c.label,
+      section: c.section,
+      run: c.run,
+    }));
+  }
+
+  function searchRows(query: string): Row[] {
+    const commandRows = STATIC_COMMANDS.filter((c) => !c.available || c.available())
+      .map((c) => ({ row: { label: c.label, section: c.section, run: c.run }, score: matchScore(query, `${c.label} ${c.keywords ?? ''}`) }))
+      .filter((r) => r.score >= 0);
+
+    const noteRows = notesIndex
+      .map((n) => ({
+        row: { label: n.title, section: 'Catatan', run: () => { window.location.href = n.url; } },
+        score: matchScore(query, n.title),
+      }))
+      .filter((r) => r.score >= 0);
+
+    return [...commandRows, ...noteRows]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20)
+      .map((r) => r.row);
+  }
+
+  let rows: Row[] = [];
+  let selected = 0;
+
+  function render() {
+    const grouped = !input!.value.trim();
+    resultsEl!.innerHTML = '';
+
+    if (rows.length === 0) {
+      resultsEl!.innerHTML = '<p class="cmdk-empty">Tidak ada hasil.</p>';
+      return;
+    }
+
+    let lastSection = '';
+    rows.forEach((row, i) => {
+      if (grouped && row.section !== lastSection) {
+        lastSection = row.section;
+        const header = document.createElement('p');
+        header.className = 'cmdk-section-label font-pixel';
+        header.textContent = row.section;
+        resultsEl!.appendChild(header);
+      }
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'cmdk-row' + (i === selected ? ' cmdk-row--selected' : '');
+      el.setAttribute('role', 'option');
+      el.setAttribute('aria-selected', String(i === selected));
+      el.innerHTML =
+        `<span class="cmdk-row-label">${escapeHtml(row.label)}</span>` +
+        (!grouped ? `<span class="cmdk-row-tag">${escapeHtml(row.section)}</span>` : '');
+      el.addEventListener('mouseenter', () => { selected = i; render(); });
+      el.addEventListener('click', () => execute(row));
+      resultsEl!.appendChild(el);
+    });
+
+    resultsEl!.querySelector('.cmdk-row--selected')?.scrollIntoView({ block: 'nearest' });
+  }
+
+  function execute(row: Row) {
+    close();
+    row.run();
+  }
+
+  function recompute() {
+    const query = input!.value;
+    selected = 0;
+    rows = query.trim() ? searchRows(query) : groupedDefaultRows();
+    render();
+  }
+
+  function open() {
+    overlay!.hidden = false;
+    input!.value = '';
+    recompute();
+    // Focus synchronously right after unhiding — no need to wait a frame,
+    // and waiting is actively harmful in a backgrounded/non-composited tab
+    // where rAF callbacks can be throttled indefinitely.
+    input!.focus();
+  }
+
+  function close() {
+    overlay!.hidden = true;
+  }
+
+  function toggle() {
+    if (overlay!.hidden) open(); else close();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      toggle();
+    } else if (e.key === 'Escape' && !overlay!.hidden) {
+      close();
+    }
+  });
+
+  document.addEventListener('learnex:command-palette-open', toggle);
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+
+  input.addEventListener('input', recompute);
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selected = Math.min(selected + 1, rows.length - 1);
+      render();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selected = Math.max(selected - 1, 0);
+      render();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (rows[selected]) execute(rows[selected]);
+    }
+  });
+</script>
+
+<style>
+  .cmdk-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: flex;
+    justify-content: center;
+    padding-top: 12vh;
+    background: hsl(var(--shadow-color) / 0.55);
+  }
+  .cmdk-overlay[hidden] {
+    display: none;
+  }
+
+  .cmdk-box {
+    width: min(34rem, 92vw);
+    max-height: min(28rem, 70vh);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 24px 56px -16px hsl(var(--shadow-color) / 0.6);
+    overflow: hidden;
+    animation: cmdk-pop-in 0.15s ease both;
+  }
+  @keyframes cmdk-pop-in {
+    from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+  }
+
+  .cmdk-input-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .cmdk-input-icon {
+    color: var(--ink-faint);
+    flex-shrink: 0;
+  }
+  .cmdk-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    outline: none;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+  }
+  .cmdk-input::placeholder {
+    color: var(--ink-faint);
+  }
+  .cmdk-esc {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--ink-faint);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.1rem 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .cmdk-results {
+    overflow-y: auto;
+    padding: 0.4rem;
+  }
+  .cmdk-section-label {
+    font-size: 0.58rem;
+    color: var(--brass);
+    letter-spacing: 0.05em;
+    margin: 0.6rem 0.5rem 0.3rem;
+  }
+  .cmdk-section-label:first-child {
+    margin-top: 0.3rem;
+  }
+
+  .cmdk-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.55rem 0.65rem;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .cmdk-row-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cmdk-row--selected {
+    background: var(--bg-inset);
+    color: var(--accent);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .cmdk-row-tag {
+    flex-shrink: 0;
+    font-family: var(--font-pixel);
+    font-size: 0.56rem;
+    color: var(--ink-faint);
+    letter-spacing: 0.03em;
+  }
+  .cmdk-empty {
+    padding: 1.2rem;
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.85rem;
+    margin: 0;
+  }
+
+  @media (max-width: 480px) {
+    .cmdk-overlay {
+      padding-top: 6vh;
+    }
+  }
+</style>

@@ -72,6 +72,9 @@ const inTerms = currentPath.startsWith('/terms');
                   <a href={href} aria-current={isActive(href) ? 'page' : undefined}>
                     <PixelIcon name={iconForDomain(domain)} size={13} />
                     <span>{domain}</span>
+                    <span class="sidebar-mastery-badge" data-mastery-key={slug} hidden data-tooltip="Semua catatan di domain ini sudah dikuasai">
+                      <PixelIcon name="badge" size={11} />
+                    </span>
                   </a>
                 </li>
               );
@@ -82,6 +85,30 @@ const inTerms = currentPath.startsWith('/terms');
     </div>
   </details>
 </nav>
+
+<script>
+  import { loadStates } from '../lib/srs-client';
+  import { computeGroupProgress, type MasteryIndex } from '../lib/mastery';
+
+  // Decorative-only: badges are a nice-to-have read of localStorage state,
+  // never load-bearing for navigation — any failure here is swallowed so a
+  // slow/broken fetch never breaks the sidebar itself.
+  (async () => {
+    try {
+      const res = await fetch('/mastery-index.json');
+      const data: MasteryIndex = await res.json();
+      const states = loadStates();
+      const progress = computeGroupProgress(data.termGroups, states);
+      const mastered = new Set(progress.filter((g) => g.isFullyMastered).map((g) => g.key));
+      document.querySelectorAll<HTMLElement>('[data-mastery-key]').forEach((el) => {
+        const key = el.dataset.masteryKey;
+        if (key && mastered.has(key)) el.hidden = false;
+      });
+    } catch {
+      /* badges are decorative — fail quietly */
+    }
+  })();
+</script>
 
 <style>
   .sidebar {
@@ -198,5 +225,15 @@ const inTerms = currentPath.startsWith('/terms');
     border-radius: 999px;
     background: var(--brass);
     flex-shrink: 0;
+  }
+
+  .sidebar-mastery-badge {
+    margin-left: auto;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+  }
+  .sidebar-mastery-badge :global(.pixel-icon) {
+    color: var(--brass);
   }
 </style>

@@ -529,3 +529,32 @@ code, pre, kbd {
     color: #444;
   }
 }
+
+/* ---------- AI-generated diagrams (src/lib/diagram.ts) ----------
+   One shared definition for the node/edge SVG both StudyAssistant.astro
+   (chat bubble) and StudyCanvas.astro (canvas overlay) inject via
+   innerHTML — a scoped <style> in either component wouldn't reach markup
+   added at runtime, so this lives here instead of being duplicated with
+   :global() in both files. */
+.lx-diagram-node {
+  fill: var(--bg-inset);
+  stroke: var(--brass);
+  stroke-width: 1.4;
+}
+.lx-diagram-label {
+  font-family: var(--font-body);
+  font-size: 12px;
+  fill: var(--ink);
+}
+.lx-diagram-edge {
+  stroke: var(--border-strong);
+  stroke-width: 1.3;
+}
+.lx-diagram-edge-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  fill: var(--ink-faint);
+}
+.lx-diagram-arrowhead {
+  fill: var(--border-strong);
+}

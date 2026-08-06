@@ -6,6 +6,7 @@ import Medallion from '../components/ornaments/Medallion.astro';
 import PixelIcon from '../components/ornaments/PixelIcon.astro';
 import AnnotationCanvas from '../components/AnnotationCanvas.astro';
 import StudyCanvas from '../components/StudyCanvas.astro';
+import CodeSandbox from '../components/CodeSandbox.astro';
 
 interface Crumb {
   label: string;
@@ -147,6 +148,7 @@ const issueUrl = 'https://github.com/gibssheree/learnex/issues/new?' + issuePara
   </div>
 
   <StudyCanvas route={Astro.url.pathname} title={title} />
+  <CodeSandbox />
 </BaseLayout>
 
 <script>

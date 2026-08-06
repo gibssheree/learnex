@@ -1,27 +1,66 @@
 ---
 import AnnotationToolbar from './AnnotationToolbar.astro';
+import { getCollection } from 'astro:content';
 
 interface Props {
   route: string;
   title: string;
 }
 const { route, title } = Astro.props;
+
+const terms = await getCollection('terms');
+const languages = await getCollection('languages');
+
+const allTopics = [
+  ...languages.filter(l => !l.data.isMoc).map(l => ({ label: l.data.title, route: `/languages/${l.data.slug}`, group: 'Languages' })),
+  ...terms.map(t => ({ label: t.data.domain, route: `/terms/${t.data.domainSlug}`, group: 'Terms' }))
+].sort((a, b) => a.label.localeCompare(b.label));
+
+const languagesGroup = allTopics.filter(t => t.group === 'Languages');
+const termsGroup = allTopics.filter(t => t.group === 'Terms');
 ---
 
 <div id="study-canvas-overlay" class="study-canvas-overlay" data-pagefind-ignore hidden data-route={route}>
   <div class="study-canvas-shell">
     <header class="study-canvas-header">
-      <p class="font-pixel study-canvas-title">Study canvas — {title}</p>
+      <div class="study-canvas-title-wrap">
+        <span class="font-pixel study-canvas-title">Study canvas — </span>
+        <select id="study-canvas-topic-select" class="study-canvas-topic-select font-pixel" aria-label="Change topic">
+          <optgroup label="Languages">
+            {languagesGroup.map(t => (
+              <option value={t.route} selected={t.route === route}>{t.label}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Terms">
+            {termsGroup.map(t => (
+              <option value={t.route} selected={t.route === route}>{t.label}</option>
+            ))}
+          </optgroup>
+        </select>
+      </div>
       <button id="study-canvas-close-btn" class="study-canvas-close" type="button" aria-label="Close study canvas">×</button>
     </header>
 
     <div class="study-canvas-grid">
-      <aside class="study-canvas-pane study-canvas-reference" id="study-canvas-reference" aria-label="Reference notes"></aside>
+      <aside class="study-canvas-pane study-canvas-reference" aria-label="Reference notes">
+        <div class="study-canvas-pane-tabs" role="tablist">
+          <button type="button" class="study-canvas-pane-tab" data-pane-tab="reference" role="tab" aria-selected="true">Reference</button>
+          <button type="button" class="study-canvas-pane-tab" data-pane-tab="graph" role="tab" aria-selected="false">Graph</button>
+        </div>
+        <div id="study-canvas-reference-content" class="study-canvas-pane-content"></div>
+        <div id="study-canvas-graph-content" class="study-canvas-pane-content study-canvas-graph-content" hidden></div>
+      </aside>
 
       <div class="study-canvas-pane study-canvas-center">
         <AnnotationToolbar id="study-canvas-toolbar" variant="inline" viewLabel="None" />
         <div class="study-canvas-canvas-wrap" id="study-canvas-canvas-wrap">
           <canvas id="study-canvas-drawing" class="study-canvas-drawing"></canvas>
+          <div id="study-canvas-diagram-overlay" class="study-canvas-diagram-overlay" hidden>
+            <div class="study-canvas-diagram-box">
+              <button type="button" id="study-canvas-diagram-close" class="study-canvas-diagram-close" aria-label="Tutup diagram">×</button>
+              <div id="study-canvas-diagram-svg"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -32,15 +71,19 @@ const { route, title } = Astro.props;
 
 <script>
   import { attachAnnotationToolkit, type AnnotationToolkit } from '../lib/annotation-toolkit';
+  import { renderDiagramSvg, type DiagramSpec } from '../lib/diagram';
 
   const overlay = document.getElementById('study-canvas-overlay') as HTMLElement | null;
   const closeBtn = document.getElementById('study-canvas-close-btn');
-  const referencePane = document.getElementById('study-canvas-reference');
+  const referenceContent = document.getElementById('study-canvas-reference-content');
+  const graphContent = document.getElementById('study-canvas-graph-content');
+  const paneTabs = document.querySelectorAll<HTMLButtonElement>('.study-canvas-pane-tab');
   const assistantDock = document.getElementById('study-canvas-assistant-dock');
   const canvas = document.getElementById('study-canvas-drawing') as HTMLCanvasElement | null;
   const toolbar = document.getElementById('study-canvas-toolbar');
   const canvasWrap = document.getElementById('study-canvas-canvas-wrap');
-  if (!overlay || !closeBtn || !referencePane || !assistantDock || !canvas || !toolbar || !canvasWrap) {
+  const topicSelect = document.getElementById('study-canvas-topic-select') as HTMLSelectElement | null;
+  if (!overlay || !closeBtn || !referenceContent || !graphContent || !assistantDock || !canvas || !toolbar || !canvasWrap) {
     throw new Error('StudyCanvas: missing DOM nodes');
   }
 
@@ -55,8 +98,165 @@ const { route, title } = Astro.props;
     if (!source) return;
     const clone = source.cloneNode(true) as HTMLElement;
     clone.classList.remove('drop-cap');
-    referencePane!.replaceChildren(clone);
+    referenceContent!.replaceChildren(clone);
   }
+
+  // ---------- Focused Graph pane ----------
+  // A 2-hop subgraph centered on the current note, read from the same
+  // /graph-data.json endpoint the full /graph page uses — no new backend,
+  // just a smaller, deterministic slice of data that already exists.
+  interface GraphData {
+    nodes: { id: string; title: string; group: string }[];
+    edges: { source: string; target: string }[];
+  }
+
+  const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  let graphDataPromise: Promise<GraphData> | null = null;
+  function getGraphData(): Promise<GraphData> {
+    if (!graphDataPromise) graphDataPromise = fetch('/graph-data.json').then((r) => r.json());
+    return graphDataPromise;
+  }
+
+  function buildFocusedGraphSvg(data: GraphData, currentRoute: string): string {
+    const nodeById = new Map(data.nodes.map((n) => [n.id, n]));
+    const adj = new Map<string, Set<string>>();
+    for (const n of data.nodes) adj.set(n.id, new Set());
+    for (const e of data.edges) {
+      adj.get(e.source)?.add(e.target);
+      adj.get(e.target)?.add(e.source);
+    }
+
+    const oneHopIds = [...(adj.get(currentRoute) ?? [])];
+    if (oneHopIds.length === 0) {
+      return '<p class="study-canvas-graph-empty">Catatan ini belum punya tautan ke catatan lain.</p>';
+    }
+
+    const CX = 200;
+    const CY = 200;
+    const R1 = 85;
+    const R2 = 165;
+
+    const oneHopNodes = oneHopIds.map((id, i) => {
+      const angle = (i / oneHopIds.length) * Math.PI * 2 - Math.PI / 2;
+      return { id, title: nodeById.get(id)?.title ?? id, angle, x: CX + R1 * Math.cos(angle), y: CY + R1 * Math.sin(angle) };
+    });
+
+    // Each 2-hop node is assigned to the first 1-hop parent that reaches it,
+    // then fanned out in a small arc around that parent's own angle — this
+    // reads as "what this leads to" rather than a flat, meaningless ring.
+    const seenTwoHop = new Set<string>();
+    const twoHopNodes: { id: string; title: string; x: number; y: number; parentX: number; parentY: number; angle: number }[] = [];
+    for (const parent of oneHopNodes) {
+      const kids = [...(adj.get(parent.id) ?? [])].filter((id) => id !== currentRoute && !oneHopIds.includes(id) && !seenTwoHop.has(id));
+      const spread = Math.PI / 5;
+      kids.forEach((id, i) => {
+        seenTwoHop.add(id);
+        const t = kids.length === 1 ? 0.5 : i / (kids.length - 1);
+        const angle = parent.angle - spread / 2 + t * spread;
+        twoHopNodes.push({
+          id,
+          title: nodeById.get(id)?.title ?? id,
+          angle,
+          x: CX + R2 * Math.cos(angle),
+          y: CY + R2 * Math.sin(angle),
+          parentX: parent.x,
+          parentY: parent.y,
+        });
+      });
+    }
+
+    const centerTitle = nodeById.get(currentRoute)?.title ?? document.title;
+
+    let svg = '<svg viewBox="0 0 400 400" class="focused-graph-svg" role="img" aria-label="Graph terpusat pada catatan ini">';
+    for (const n of oneHopNodes) svg += `<line x1="${CX}" y1="${CY}" x2="${n.x}" y2="${n.y}" class="fg-edge" />`;
+    for (const n of twoHopNodes) svg += `<line x1="${n.parentX}" y1="${n.parentY}" x2="${n.x}" y2="${n.y}" class="fg-edge fg-edge--outer" />`;
+
+    svg += `<circle cx="${CX}" cy="${CY}" r="10" class="fg-node fg-node--center" />`;
+    svg += `<text x="${CX}" y="${CY + 26}" text-anchor="middle" class="fg-label fg-label--center">${escapeHtml(centerTitle)}</text>`;
+
+    for (const n of oneHopNodes) {
+      const anchor = Math.cos(n.angle) >= 0 ? 'start' : 'end';
+      const dx = Math.cos(n.angle) >= 0 ? 10 : -10;
+      svg += `<a href="${n.id}?canvas=true" class="fg-link">
+        <circle cx="${n.x}" cy="${n.y}" r="6" class="fg-node fg-node--1hop" />
+        <text x="${n.x + dx}" y="${n.y + 4}" text-anchor="${anchor}" class="fg-label">${escapeHtml(n.title)}</text>
+      </a>`;
+    }
+    for (const n of twoHopNodes) {
+      const anchor = Math.cos(n.angle) >= 0 ? 'start' : 'end';
+      const dx = Math.cos(n.angle) >= 0 ? 8 : -8;
+      svg += `<a href="${n.id}?canvas=true" class="fg-link">
+        <circle cx="${n.x}" cy="${n.y}" r="4" class="fg-node fg-node--2hop" />
+        <text x="${n.x + dx}" y="${n.y + 3}" text-anchor="${anchor}" class="fg-label fg-label--small">${escapeHtml(n.title)}</text>
+      </a>`;
+    }
+    svg += '</svg>';
+    return svg;
+  }
+
+  let graphRendered = false;
+  async function renderFocusedGraphIfNeeded() {
+    if (graphRendered) return;
+    graphRendered = true;
+    const route = overlay!.dataset.route ?? location.pathname;
+    const data = await getGraphData();
+    graphContent!.innerHTML = buildFocusedGraphSvg(data, route);
+  }
+
+  const PANE_KEY = 'learnex-canvas-panes';
+  type PaneTab = 'reference' | 'graph';
+  let activePane: PaneTab = localStorage.getItem(PANE_KEY) === 'graph' ? 'graph' : 'reference';
+
+  // Only toggles DOM state — deliberately no network call here, so a note
+  // page that mounts this component doesn't fetch graph-data.json unless
+  // the Study Canvas is actually opened (see openCanvas()/setActivePane()
+  // below, the only two places that call renderFocusedGraphIfNeeded()).
+  function applyActivePane() {
+    paneTabs.forEach((btn) => btn.setAttribute('aria-selected', String(btn.dataset.paneTab === activePane)));
+    referenceContent!.hidden = activePane !== 'reference';
+    graphContent!.hidden = activePane !== 'graph';
+  }
+
+  function setActivePane(pane: PaneTab) {
+    activePane = pane;
+    localStorage.setItem(PANE_KEY, pane);
+    applyActivePane();
+    if (activePane === 'graph') renderFocusedGraphIfNeeded();
+  }
+
+  paneTabs.forEach((btn) => {
+    btn.addEventListener('click', () => setActivePane(btn.dataset.paneTab as PaneTab));
+  });
+
+  applyActivePane();
+
+  // ---------- AI-generated diagrams (from Study Assistant) ----------
+  // A non-destructive overlay on top of the drawing canvas: rendered from
+  // the same DiagramSpec + renderDiagramSvg() the chat bubble uses (see
+  // src/lib/diagram.ts and StudyAssistant.astro's "Buka di Study Canvas"
+  // button), but never touches `strokes` — clearing/undoing annotations
+  // leaves it alone, and it leaves annotating alone too (the wrapper has
+  // pointer-events: none; only its own close button opts back in).
+  const diagramOverlay = document.getElementById('study-canvas-diagram-overlay');
+  const diagramSvgHost = document.getElementById('study-canvas-diagram-svg');
+  const diagramCloseBtn = document.getElementById('study-canvas-diagram-close');
+
+  diagramCloseBtn?.addEventListener('click', () => {
+    diagramOverlay!.hidden = true;
+  });
+
+  function showDiagram(spec: DiagramSpec) {
+    const svg = renderDiagramSvg(spec);
+    if (!svg || !diagramSvgHost || !diagramOverlay) return;
+    diagramSvgHost.innerHTML = svg;
+    diagramOverlay.hidden = false;
+    if (overlay!.hidden) openCanvas();
+  }
+
+  document.addEventListener('learnex:assistant-diagram', ((e: Event) => {
+    showDiagram((e as CustomEvent<DiagramSpec>).detail);
+  }) as EventListener);
 
   function dockAssistant() {
     const assistantRoot = document.querySelector('.assistant-root') as HTMLElement | null;
@@ -83,6 +283,7 @@ const { route, title } = Astro.props;
     dockAssistant();
     overlay!.hidden = false;
     document.body.style.overflow = 'hidden';
+    if (activePane === 'graph') renderFocusedGraphIfNeeded();
 
     if (!toolkit) {
       toolkit = attachAnnotationToolkit({
@@ -100,6 +301,12 @@ const { route, title } = Astro.props;
     overlay!.hidden = true;
     document.body.style.overflow = '';
     undockAssistant();
+    // Remove ?canvas=true from URL if present
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('canvas')) {
+      url.searchParams.delete('canvas');
+      window.history.replaceState({}, '', url);
+    }
   }
 
   closeBtn.addEventListener('click', closeCanvas);
@@ -114,6 +321,20 @@ const { route, title } = Astro.props;
   window.addEventListener('resize', () => {
     if (overlay && !overlay.hidden) toolkit?.resize();
   });
+
+  if (topicSelect) {
+    topicSelect.addEventListener('change', () => {
+      const newRoute = topicSelect.value;
+      if (newRoute && newRoute !== location.pathname) {
+        window.location.href = `${newRoute}?canvas=true`;
+      }
+    });
+  }
+
+  // Auto-open canvas if URL has ?canvas=true
+  if (new URLSearchParams(window.location.search).get('canvas') === 'true') {
+    setTimeout(() => openCanvas(), 0);
+  }
 </script>
 
 <style>
@@ -140,11 +361,44 @@ const { route, title } = Astro.props;
     background: var(--bg-inset);
     flex-shrink: 0;
   }
+  .study-canvas-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
   .study-canvas-title {
     font-size: 0.68rem;
     color: var(--brass);
     letter-spacing: 0.04em;
     margin: 0;
+  }
+  .study-canvas-topic-select {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--brass);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    padding: 0.2rem 0.4rem;
+    cursor: pointer;
+    outline: none;
+    max-width: 250px;
+  }
+  .study-canvas-topic-select:hover, .study-canvas-topic-select:focus {
+    border-color: var(--brass);
+  }
+  .study-canvas-topic-select optgroup {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--ink-faint);
+    font-style: normal;
+    font-weight: 600;
+  }
+  .study-canvas-topic-select option {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--ink);
+    font-weight: normal;
   }
   .study-canvas-close {
     width: 30px;
@@ -180,11 +434,108 @@ const { route, title } = Astro.props;
   }
 
   .study-canvas-reference {
-    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     font-size: 0.85rem;
+  }
+  .study-canvas-pane-tabs {
+    display: flex;
+    gap: 0.3rem;
+    padding: 0.6rem 0.75rem 0;
+    flex-shrink: 0;
+  }
+  .study-canvas-pane-tab {
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    background: transparent;
+    color: var(--ink-muted);
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+  }
+  .study-canvas-pane-tab[aria-selected='true'] {
+    background: var(--bg);
+    color: var(--accent);
+    border-color: var(--border);
+  }
+  .study-canvas-pane-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1.25rem 1.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .study-canvas-pane-content[hidden] {
+    display: none;
   }
   .study-canvas-reference :global(.vault-prose) {
     font-size: inherit;
+  }
+
+  .study-canvas-graph-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .study-canvas-graph-empty {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.85rem;
+    max-width: 16rem;
+    margin: 0 auto;
+  }
+  .focused-graph-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .fg-edge {
+    stroke: var(--border-strong);
+    stroke-width: 1.2;
+  }
+  .fg-edge--outer {
+    stroke: var(--border);
+    stroke-width: 0.8;
+  }
+  .fg-node--center {
+    fill: var(--bg-inset);
+    stroke: var(--brass);
+    stroke-width: 1.6;
+  }
+  .fg-node--1hop {
+    fill: var(--brass);
+    stroke: var(--bg-elevated);
+    stroke-width: 1.2;
+  }
+  .fg-node--2hop {
+    fill: var(--bg);
+    stroke: var(--brass);
+    stroke-width: 1.1;
+  }
+  .fg-label {
+    font-family: var(--font-body);
+    font-size: 10.5px;
+    fill: var(--ink-muted);
+  }
+  .fg-label--center {
+    font-family: var(--font-display);
+    font-size: 12px;
+    fill: var(--ink);
+  }
+  .fg-label--small {
+    font-size: 9px;
+    fill: var(--ink-faint);
+  }
+  .fg-link {
+    cursor: pointer;
+  }
+  .fg-link:hover .fg-label {
+    fill: var(--accent);
+    font-weight: 600;
   }
 
   .study-canvas-center {
@@ -203,6 +554,54 @@ const { route, title } = Astro.props;
     inset: 0;
     display: block;
     touch-action: none;
+  }
+
+  .study-canvas-diagram-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    /* Pass clicks/drawing through to whatever's underneath everywhere except
+       the box itself — the diagram is a reference overlay, not a modal. */
+    pointer-events: none;
+  }
+  .study-canvas-diagram-overlay[hidden] {
+    display: none;
+  }
+  .study-canvas-diagram-box {
+    position: relative;
+    max-width: min(90%, 34rem);
+    max-height: 90%;
+    overflow: auto;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem 1rem;
+    box-shadow: 0 20px 48px -16px hsl(var(--shadow-color) / 0.6);
+    pointer-events: auto;
+  }
+  .study-canvas-diagram-close {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.4rem;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .study-canvas-diagram-close:hover {
+    color: var(--accent);
+    background: var(--bg-inset);
   }
 
   .study-canvas-assistant-dock {

@@ -1,0 +1,360 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Progress"
+  description="Peta penguasaan — persentase catatan yang sudah dikuasai per kategori bahasa dan domain istilah, dihitung dari riwayat review lokal kamu sendiri."
+>
+  <div class="mastery-page">
+    <header class="mastery-header">
+      <p class="font-pixel mastery-kicker">Mastery Map</p>
+      <h1>Progress</h1>
+      <p class="mastery-tagline">
+        Dihitung dari catatan yang kamu tandai "known" dan riwayat <a href="/review">review flashcard</a>
+        milikmu sendiri — semuanya tersimpan lokal di browser ini, tidak ada akun, tidak ada server.
+      </p>
+    </header>
+
+    <p id="mastery-loading" class="mastery-loading font-pixel">Menghitung progres…</p>
+
+    <div id="mastery-radial-wrap" class="mastery-radial-wrap" hidden>
+      <div id="mastery-radial" class="mastery-radial"></div>
+    </div>
+
+    <section id="mastery-language-section" class="mastery-groups" hidden>
+      <h2 class="mastery-section-title">Programming Languages</h2>
+      <div id="mastery-language-grid" class="mastery-grid"></div>
+    </section>
+
+    <section id="mastery-term-section" class="mastery-groups" hidden>
+      <h2 class="mastery-section-title">Terms &amp; Knowledge</h2>
+      <div id="mastery-term-grid" class="mastery-grid"></div>
+    </section>
+  </div>
+</BaseLayout>
+
+<script>
+  import { loadStates } from '../../lib/srs-client';
+  import { computeGroupProgress, overallPercent, type MasteryIndex, type GroupProgress } from '../../lib/mastery';
+  import { PIXEL_ICONS } from '../../lib/pixelIcons';
+
+  // Builds the same markup PixelIcon.astro would, from the same glyph data —
+  // needed here (unlike Sidebar.astro) because this page's cards are built
+  // via innerHTML from client-only (localStorage-derived) data, so there's
+  // no server render pass to drop a real <PixelIcon> into.
+  function pixelIconSvg(name: keyof typeof PIXEL_ICONS, size = 14): string {
+    const grid = PIXEL_ICONS[name] ?? PIXEL_ICONS.book;
+    let rects = '';
+    grid.forEach((row, y) => {
+      row.split('').forEach((cell, x) => {
+        if (cell === '1') rects += `<rect x="${x}" y="${y}" width="1" height="1" />`;
+      });
+    });
+    return `<svg width="${size}" height="${size}" viewBox="0 0 8 8" shape-rendering="crispEdges" class="mastery-badge-icon" aria-hidden="true">${rects}</svg>`;
+  }
+
+  const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const loadingEl = document.getElementById('mastery-loading');
+  const radialWrap = document.getElementById('mastery-radial-wrap');
+  const radialEl = document.getElementById('mastery-radial');
+  const langSection = document.getElementById('mastery-language-section');
+  const langGrid = document.getElementById('mastery-language-grid');
+  const termSection = document.getElementById('mastery-term-section');
+  const termGrid = document.getElementById('mastery-term-grid');
+
+  function renderGrid(host: HTMLElement | null, progress: GroupProgress[]) {
+    if (!host) return;
+    host.innerHTML = progress
+      .map(
+        (g) => `
+      <div class="mastery-card${g.isFullyMastered ? ' mastery-card--complete' : ''}" id="mastery-card-${g.key}">
+        <div class="mastery-card-head">
+          <span class="mastery-card-label">${escapeHtml(g.label)}</span>
+          ${g.isFullyMastered ? pixelIconSvg('badge', 14) : ''}
+        </div>
+        <div class="mastery-bar"><div class="mastery-bar-fill" style="width:${g.percent}%"></div></div>
+        <p class="mastery-card-count">${g.masteredCount} / ${g.total} · ${g.percent}%</p>
+      </div>`,
+      )
+      .join('');
+  }
+
+  // ---------- Radial overview ----------
+  // Two-level layout adapted from MindMap.astro (hub per "kind", sized by
+  // group count, leaves fanned around it) — the one difference is each leaf
+  // is its own tiny ring gauge (stroke-dasharray by percent) instead of a
+  // plain dot, since the whole point here is showing *how much*, not just
+  // *whether*.
+  function renderRadial(languageProgress: GroupProgress[], termProgress: GroupProgress[]) {
+    if (!radialEl) return;
+    const kinds = [
+      { key: 'languages', label: 'Languages', groups: languageProgress },
+      { key: 'terms', label: 'Terms & Knowledge', groups: termProgress },
+    ].filter((k) => k.groups.length > 0);
+    const totalGroups = kinds.reduce((s, k) => s + k.groups.length, 0);
+    if (totalGroups === 0) return;
+
+    const CX = 260;
+    const CY = 260;
+    const R1 = 78;
+    const R2 = 205;
+    const GAP = 0.05;
+    let cursor = -Math.PI / 2;
+
+    const hubNodes = kinds.map((kind) => {
+      const sector = (kind.groups.length / totalGroups) * (Math.PI * 2) - GAP;
+      const start = cursor;
+      const end = cursor + sector;
+      cursor = end + GAP;
+      const mid = (start + end) / 2;
+      const leaves = kind.groups.map((g, i) => {
+        const t = kind.groups.length === 1 ? 0.5 : i / (kind.groups.length - 1);
+        const angle = kind.groups.length === 1 ? mid : start + t * sector;
+        return { ...g, angle, x: CX + R2 * Math.cos(angle), y: CY + R2 * Math.sin(angle) };
+      });
+      return { key: kind.key, label: kind.label, mid, x: CX + R1 * Math.cos(mid), y: CY + R1 * Math.sin(mid), leaves };
+    });
+
+    const overall = overallPercent([...languageProgress, ...termProgress]);
+
+    let svg = '<svg viewBox="0 0 520 520" class="mastery-radial-svg" role="img" aria-label="Peta penguasaan">';
+    for (const hub of hubNodes) {
+      svg += `<line x1="${CX}" y1="${CY}" x2="${hub.x}" y2="${hub.y}" class="mastery-radial-spoke" />`;
+      for (const leaf of hub.leaves) {
+        svg += `<line x1="${hub.x}" y1="${hub.y}" x2="${leaf.x}" y2="${leaf.y}" class="mastery-radial-spoke mastery-radial-spoke--leaf" />`;
+      }
+    }
+
+    svg += `<circle cx="${CX}" cy="${CY}" r="44" class="mastery-radial-center-ring" />`;
+    svg += `<text x="${CX}" y="${CY - 2}" text-anchor="middle" class="mastery-radial-center-percent">${overall}%</text>`;
+    svg += `<text x="${CX}" y="${CY + 16}" text-anchor="middle" class="mastery-radial-center-label">OVERALL</text>`;
+
+    for (const hub of hubNodes) {
+      svg += `<circle cx="${hub.x}" cy="${hub.y}" r="7" class="mastery-radial-hub" />`;
+      const anchor = Math.cos(hub.mid) >= 0 ? 'start' : 'end';
+      const dx = Math.cos(hub.mid) >= 0 ? 11 : -11;
+      svg += `<text x="${hub.x + dx}" y="${hub.y + 4}" text-anchor="${anchor}" class="mastery-radial-hub-label">${escapeHtml(hub.label)}</text>`;
+    }
+
+    const R_LEAF = 8;
+    const CIRC = 2 * Math.PI * R_LEAF;
+    for (const hub of hubNodes) {
+      for (const leaf of hub.leaves) {
+        const anchor = Math.cos(leaf.angle) >= 0 ? 'start' : 'end';
+        const dx = Math.cos(leaf.angle) >= 0 ? 12 : -12;
+        const dash = (leaf.percent / 100) * CIRC;
+        svg += `<a href="#mastery-card-${leaf.key}" class="mastery-radial-link">
+          <circle cx="${leaf.x}" cy="${leaf.y}" r="${R_LEAF}" class="mastery-radial-leaf-track" />
+          <circle cx="${leaf.x}" cy="${leaf.y}" r="${R_LEAF}" class="mastery-radial-leaf-fill${leaf.isFullyMastered ? ' mastery-radial-leaf-fill--complete' : ''}"
+            stroke-dasharray="${dash} ${CIRC - dash}" transform="rotate(-90 ${leaf.x} ${leaf.y})" />
+          <text x="${leaf.x + dx}" y="${leaf.y + 3}" text-anchor="${anchor}" class="mastery-radial-leaf-label">${escapeHtml(leaf.label)}</text>
+        </a>`;
+      }
+    }
+    svg += '</svg>';
+    radialEl.innerHTML = svg;
+  }
+
+  (async function init() {
+    try {
+      const res = await fetch('/mastery-index.json');
+      const data: MasteryIndex = await res.json();
+      const states = loadStates();
+      const languageProgress = computeGroupProgress(data.languageGroups, states);
+      const termProgress = computeGroupProgress(data.termGroups, states);
+
+      renderRadial(languageProgress, termProgress);
+      renderGrid(langGrid, languageProgress);
+      renderGrid(termGrid, termProgress);
+
+      loadingEl?.setAttribute('hidden', '');
+      radialWrap?.removeAttribute('hidden');
+      if (languageProgress.length) langSection?.removeAttribute('hidden');
+      if (termProgress.length) termSection?.removeAttribute('hidden');
+    } catch {
+      if (loadingEl) loadingEl.textContent = 'Gagal memuat data progres.';
+    }
+  })();
+</script>
+
+<style>
+  .mastery-page {
+    max-width: 74rem;
+    margin: 0 auto;
+    padding: 2.5rem 2rem 6rem;
+  }
+  .mastery-header {
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+  .mastery-kicker {
+    font-size: 0.62rem;
+    color: var(--brass);
+    letter-spacing: 0.08em;
+  }
+  .mastery-header h1 {
+    font-size: 2.2rem;
+    margin: 0.5rem 0 0.75rem;
+  }
+  .mastery-tagline {
+    max-width: 40rem;
+    margin: 0 auto;
+    color: var(--ink-muted);
+  }
+  .mastery-tagline a {
+    color: var(--accent);
+  }
+
+  .mastery-loading {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.65rem;
+    letter-spacing: 0.05em;
+    margin: 3rem 0;
+  }
+
+  .mastery-radial-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 2rem 0 3rem;
+  }
+  .mastery-radial-wrap[hidden] {
+    display: none;
+  }
+  .mastery-radial {
+    width: 100%;
+    max-width: 34rem;
+  }
+  .mastery-radial :global(.mastery-radial-svg) {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .mastery-radial :global(.mastery-radial-spoke) {
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+  .mastery-radial :global(.mastery-radial-spoke--leaf) {
+    stroke: var(--border);
+    stroke-width: 0.6;
+    opacity: 0.7;
+  }
+  .mastery-radial :global(.mastery-radial-center-ring) {
+    fill: var(--bg-inset);
+    stroke: var(--brass);
+    stroke-width: 1.6;
+  }
+  .mastery-radial :global(.mastery-radial-center-percent) {
+    font-family: var(--font-display);
+    font-size: 22px;
+    fill: var(--ink);
+  }
+  .mastery-radial :global(.mastery-radial-center-label) {
+    font-family: var(--font-pixel);
+    font-size: 7px;
+    fill: var(--brass);
+    letter-spacing: 1px;
+  }
+  .mastery-radial :global(.mastery-radial-hub) {
+    fill: var(--brass);
+  }
+  .mastery-radial :global(.mastery-radial-hub-label) {
+    font-family: var(--font-display);
+    font-size: 13px;
+    fill: var(--brass);
+    letter-spacing: 0.02em;
+  }
+  .mastery-radial :global(.mastery-radial-leaf-track) {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 2.4;
+  }
+  .mastery-radial :global(.mastery-radial-leaf-fill) {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+  }
+  .mastery-radial :global(.mastery-radial-leaf-fill--complete) {
+    stroke: var(--brass);
+  }
+  .mastery-radial :global(.mastery-radial-leaf-label) {
+    font-family: var(--font-body);
+    font-size: 10px;
+    fill: var(--ink-muted);
+  }
+  .mastery-radial :global(.mastery-radial-link) {
+    cursor: pointer;
+  }
+  .mastery-radial :global(.mastery-radial-link:hover .mastery-radial-leaf-label) {
+    fill: var(--accent);
+    font-weight: 600;
+  }
+
+  .mastery-groups {
+    margin-top: 2.5rem;
+  }
+  .mastery-groups[hidden] {
+    display: none;
+  }
+  .mastery-section-title {
+    font-size: 1.05rem;
+    letter-spacing: 0.03em;
+    color: var(--brass);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .mastery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 0.9rem;
+  }
+  .mastery-card {
+    padding: 0.9rem 1.1rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    scroll-margin-top: 90px;
+  }
+  .mastery-card--complete {
+    border-color: var(--brass);
+  }
+  .mastery-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.55rem;
+  }
+  .mastery-card-label {
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--ink);
+  }
+  .mastery-card :global(.mastery-badge-icon) {
+    color: var(--brass);
+    flex-shrink: 0;
+  }
+  .mastery-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--bg-inset);
+    overflow: hidden;
+  }
+  .mastery-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 999px;
+  }
+  .mastery-card--complete .mastery-bar-fill {
+    background: var(--brass);
+  }
+  .mastery-card-count {
+    margin: 0.5rem 0 0;
+    font-size: 0.76rem;
+    color: var(--ink-faint);
+  }
+</style>
