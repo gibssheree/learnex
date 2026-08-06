@@ -1,7 +1,6 @@
 ---
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import CornerFrame from '../components/ornaments/CornerFrame.astro';
@@ -11,7 +10,14 @@ import { DOMAIN_GROUPS, KNOWLEDGE_DOMAINS, LANGUAGE_CATEGORY_ORDER, LANGUAGE_CAT
 
 // Drop a file at public/images/hero.(jpg|jpeg|png|webp) and it appears here
 // automatically on the next build/dev reload — no code change needed.
-const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../public');
+//
+// Deliberately process.cwd(), not an import.meta.url-relative path (see the
+// identical note in src/lib/vault.ts): Astro relocates page modules like
+// this one into bundled server chunks during a production build, which
+// breaks any path computed relative to the module's own file location —
+// astro dev happens to serve pages roughly in place, so this only ever
+// showed up in a real build, never in dev.
+const publicDir = path.resolve(process.cwd(), 'public');
 const heroCandidates = ['jpg', 'jpeg', 'png', 'webp'].map((ext) => `images/hero.${ext}`);
 const heroImage = heroCandidates.find((rel) => fs.existsSync(path.join(publicDir, rel)));
 
