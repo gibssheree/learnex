@@ -555,6 +555,57 @@ code, pre, kbd {
   font-size: 10px;
   fill: var(--ink-faint);
 }
+/* ---------- Cross-document view transitions ----------
+   Opts every page into the browser's native page-transition on same-origin
+   navigation (Chromium 126+; a no-op elsewhere — pure progressive
+   enhancement, every navigation is still a real full page load, nothing
+   about the site's per-page scripts changes). `@view-transition` is the
+   current CSS opt-in; the `<meta name="view-transition">` tag it replaces
+   is deprecated, so this is the only place that logic lives now.
+
+   Left at its default, the *whole page* is captured as a single
+   ::view-transition-group(root) image pair, and the browser animates that
+   group's width/height from the old page's rendered size to the new page's.
+   Notes and domain pages vary a lot in content height, so that showed up as
+   the entire page — header, sidebar, content, all of it — visibly
+   stretching/bouncing on every navigation, since it's all one blob.
+
+   Naming the header, primary sidebar, and the reader's table-of-contents
+   rail pulls each out of that blob into its own independently-tracked
+   group; `animation-duration: 0` on those groups then makes them snap
+   straight to the new page's version with no interpolated resize —
+   anchored in place instead of bouncing. The root group (the actual note/
+   domain content) keeps the browser's default crossfade: notes differ in
+   length far more than the chrome around them does, so a plain fade reads
+   better there than fighting a resize on every single navigation. */
+@view-transition {
+  navigation: auto;
+}
+
+.site-header {
+  view-transition-name: site-header;
+}
+.sidebar-aside {
+  view-transition-name: site-sidebar;
+}
+.reader-toc {
+  view-transition-name: reader-toc;
+}
+
+::view-transition-group(site-header),
+::view-transition-group(site-sidebar),
+::view-transition-group(reader-toc) {
+  animation-duration: 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
 .lx-diagram-arrowhead {
   fill: var(--border-strong);
 }
