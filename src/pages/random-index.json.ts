@@ -2,7 +2,11 @@ import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
 
 export const GET: APIRoute = async () => {
-  const [languages, terms] = await Promise.all([getCollection('languages'), getCollection('terms')]);
+  const [languages, terms, knowledge] = await Promise.all([
+    getCollection('languages'),
+    getCollection('terms'),
+    getCollection('knowledge'),
+  ]);
 
   const entries = [
     ...languages
@@ -11,6 +15,9 @@ export const GET: APIRoute = async () => {
     ...terms
       .filter((t) => !t.data.isMoc)
       .map((t) => ({ title: t.data.title, url: `/terms/${t.data.domainSlug}/${t.data.slug}` })),
+    ...knowledge
+      .filter((k) => !k.data.isMoc)
+      .map((k) => ({ title: k.data.title, url: `/${k.data.domainSlug}/${k.data.slug}` })),
   ];
 
   return new Response(JSON.stringify(entries), {

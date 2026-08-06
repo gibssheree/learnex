@@ -5,8 +5,10 @@ import CornerFrame from '../../components/ornaments/CornerFrame.astro';
 
 const languages = await getCollection('languages');
 const terms = await getCollection('terms');
+const knowledge = await getCollection('knowledge');
 const languageCount = languages.filter((l) => !l.data.isMoc).length;
 const termCount = terms.filter((t) => !t.data.isMoc).length;
+const knowledgeCount = knowledge.filter((k) => !k.data.isMoc).length;
 ---
 
 <BaseLayout
@@ -22,10 +24,12 @@ const termCount = terms.filter((t) => !t.data.isMoc).length;
 
         <div class="vault-prose drop-cap">
           <p>
-            Everything in this archive — {languageCount} language notes and {termCount} term
-            notes — is already public, static content. These three endpoints just expose it as
-            structured JSON instead of HTML, so a script, tool, or AI agent can read the vault
-            directly instead of scraping rendered pages. Read-only, no API key, no account.
+            Everything in this archive — {languageCount} language notes, {termCount} computer
+            science term notes, and {knowledgeCount} notes across standalone subjects like
+            founders, finance, physics, chemistry, and electrical engineering — is already
+            public, static content. These three endpoints just expose it as structured JSON
+            instead of HTML, so a script, tool, or AI agent can read the vault directly instead
+            of scraping rendered pages. Read-only, no API key, no account.
           </p>
 
           <h2>GET /api/v1/notes.json</h2>

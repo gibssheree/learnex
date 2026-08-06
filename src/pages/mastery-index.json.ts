@@ -8,10 +8,15 @@ import { LANGUAGE_CATEGORY_ORDER, LANGUAGE_CATEGORY_LABELS } from '../lib/domain
 // actual percentages lives in the browser (localStorage), so that half is
 // computed client-side in src/lib/mastery.ts against this JSON.
 export const GET: APIRoute = async () => {
-  const [languages, terms] = await Promise.all([getCollection('languages'), getCollection('terms')]);
+  const [languages, terms, knowledge] = await Promise.all([
+    getCollection('languages'),
+    getCollection('terms'),
+    getCollection('knowledge'),
+  ]);
 
   const languageNotes = languages.filter((l) => !l.data.isMoc);
   const termNotes = terms.filter((t) => !t.data.isMoc);
+  const knowledgeNotes = knowledge.filter((k) => !k.data.isMoc);
 
   const languageGroups = LANGUAGE_CATEGORY_ORDER.map((key) => ({
     key,
@@ -34,7 +39,19 @@ export const GET: APIRoute = async () => {
     notes,
   }));
 
-  return new Response(JSON.stringify({ languageGroups, termGroups }), {
+  const knowledgeDomainByName = new Map<string, { domainSlug: string; notes: { route: string; title: string }[] }>();
+  for (const k of knowledgeNotes) {
+    if (!knowledgeDomainByName.has(k.data.domain)) knowledgeDomainByName.set(k.data.domain, { domainSlug: k.data.domainSlug, notes: [] });
+    knowledgeDomainByName.get(k.data.domain)!.notes.push({ route: `/${k.data.domainSlug}/${k.data.slug}`, title: k.data.title });
+  }
+  const knowledgeGroups = [...knowledgeDomainByName.entries()].map(([domain, { domainSlug, notes }]) => ({
+    key: domainSlug,
+    label: domain,
+    kind: 'knowledge-domain' as const,
+    notes,
+  }));
+
+  return new Response(JSON.stringify({ languageGroups, termGroups, knowledgeGroups }), {
     headers: { 'Content-Type': 'application/json' },
   });
 };

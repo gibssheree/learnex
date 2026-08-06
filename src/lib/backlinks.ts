@@ -6,7 +6,9 @@ export interface BacklinkEntry {
   route: string;
 }
 
-function routeForEntry(entry: CollectionEntry<'languages'> | CollectionEntry<'terms'>, collection: 'languages' | 'terms'): string {
+type AnyNoteEntry = CollectionEntry<'languages'> | CollectionEntry<'terms'> | CollectionEntry<'knowledge'>;
+
+function routeForEntry(entry: AnyNoteEntry, collection: 'languages' | 'terms' | 'knowledge'): string {
   const target: LinkTarget = {
     collection,
     domainSlug: entry.data.domainSlug,
@@ -24,10 +26,14 @@ let cache: Map<string, BacklinkEntry[]> | null = null;
 export async function getBacklinkIndex(): Promise<Map<string, BacklinkEntry[]>> {
   if (cache) return cache;
 
-  const [languages, terms] = await Promise.all([getCollection('languages'), getCollection('terms')]);
+  const [languages, terms, knowledge] = await Promise.all([
+    getCollection('languages'),
+    getCollection('terms'),
+    getCollection('knowledge'),
+  ]);
   const index = new Map<string, BacklinkEntry[]>();
 
-  function addEntry(entry: CollectionEntry<'languages'> | CollectionEntry<'terms'>, collection: 'languages' | 'terms') {
+  function addEntry(entry: AnyNoteEntry, collection: 'languages' | 'terms' | 'knowledge') {
     const route = routeForEntry(entry, collection);
     for (const link of entry.data.links) {
       if (link === route) continue;
@@ -38,6 +44,7 @@ export async function getBacklinkIndex(): Promise<Map<string, BacklinkEntry[]>> 
 
   for (const e of languages) addEntry(e, 'languages');
   for (const e of terms) addEntry(e, 'terms');
+  for (const e of knowledge) addEntry(e, 'knowledge');
 
   for (const list of index.values()) {
     list.sort((a, b) => a.title.localeCompare(b.title));

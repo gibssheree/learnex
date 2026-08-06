@@ -1,0 +1,43 @@
+---
+import { getCollection, render } from 'astro:content';
+import ReaderLayout from '../../layouts/ReaderLayout.astro';
+
+// Each entry in the 'knowledge' collection is a standalone top-level section
+// (Chemistry, Physics, ...) — not a Terms & Knowledge sub-domain, so there's
+// no group crumb to look up here, unlike src/pages/terms/[domain]/index.astro.
+export async function getStaticPaths() {
+  const knowledge = await getCollection('knowledge');
+  const mocs = knowledge.filter((t) => t.data.isMoc);
+  return mocs.map((entry) => ({
+    params: { domain: entry.data.domainSlug },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+
+const knowledge = await getCollection('knowledge');
+const noteCount = knowledge.filter((t) => t.data.domainSlug === entry.data.domainSlug && !t.data.isMoc).length;
+---
+
+<ReaderLayout
+  title={entry.data.domain}
+  crumbs={[
+    { label: 'Home', href: '/' },
+    { label: entry.data.domain },
+  ]}
+  headings={headings}
+>
+  <p class="hub-kicker font-pixel">{noteCount} notes in this chapter</p>
+  <Content />
+</ReaderLayout>
+
+<style>
+  .hub-kicker {
+    font-size: 0.62rem;
+    color: var(--brass);
+    letter-spacing: 0.04em;
+    margin: -0.4em 0 1.6em;
+  }
+</style>

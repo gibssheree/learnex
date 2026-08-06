@@ -31,6 +31,11 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       <h2 class="mastery-section-title">Terms &amp; Knowledge</h2>
       <div id="mastery-term-grid" class="mastery-grid"></div>
     </section>
+
+    <section id="mastery-knowledge-section" class="mastery-groups" hidden>
+      <h2 class="mastery-section-title">Beyond Computer Science</h2>
+      <div id="mastery-knowledge-grid" class="mastery-grid"></div>
+    </section>
   </div>
 </BaseLayout>
 
@@ -63,6 +68,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   const langGrid = document.getElementById('mastery-language-grid');
   const termSection = document.getElementById('mastery-term-section');
   const termGrid = document.getElementById('mastery-term-grid');
+  const knowledgeSection = document.getElementById('mastery-knowledge-section');
+  const knowledgeGrid = document.getElementById('mastery-knowledge-grid');
 
   function renderGrid(host: HTMLElement | null, progress: GroupProgress[]) {
     if (!host) return;
@@ -87,11 +94,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   // is its own tiny ring gauge (stroke-dasharray by percent) instead of a
   // plain dot, since the whole point here is showing *how much*, not just
   // *whether*.
-  function renderRadial(languageProgress: GroupProgress[], termProgress: GroupProgress[]) {
+  function renderRadial(languageProgress: GroupProgress[], termProgress: GroupProgress[], knowledgeProgress: GroupProgress[]) {
     if (!radialEl) return;
     const kinds = [
       { key: 'languages', label: 'Languages', groups: languageProgress },
       { key: 'terms', label: 'Terms & Knowledge', groups: termProgress },
+      { key: 'knowledge', label: 'Beyond CS', groups: knowledgeProgress },
     ].filter((k) => k.groups.length > 0);
     const totalGroups = kinds.reduce((s, k) => s + k.groups.length, 0);
     if (totalGroups === 0) return;
@@ -117,7 +125,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       return { key: kind.key, label: kind.label, mid, x: CX + R1 * Math.cos(mid), y: CY + R1 * Math.sin(mid), leaves };
     });
 
-    const overall = overallPercent([...languageProgress, ...termProgress]);
+    const overall = overallPercent([...languageProgress, ...termProgress, ...knowledgeProgress]);
 
     let svg = '<svg viewBox="0 0 520 520" class="mastery-radial-svg" role="img" aria-label="Peta penguasaan">';
     for (const hub of hubNodes) {
@@ -164,15 +172,18 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       const states = loadStates();
       const languageProgress = computeGroupProgress(data.languageGroups, states);
       const termProgress = computeGroupProgress(data.termGroups, states);
+      const knowledgeProgress = computeGroupProgress(data.knowledgeGroups, states);
 
-      renderRadial(languageProgress, termProgress);
+      renderRadial(languageProgress, termProgress, knowledgeProgress);
       renderGrid(langGrid, languageProgress);
       renderGrid(termGrid, termProgress);
+      renderGrid(knowledgeGrid, knowledgeProgress);
 
       loadingEl?.setAttribute('hidden', '');
       radialWrap?.removeAttribute('hidden');
       if (languageProgress.length) langSection?.removeAttribute('hidden');
       if (termProgress.length) termSection?.removeAttribute('hidden');
+      if (knowledgeProgress.length) knowledgeSection?.removeAttribute('hidden');
     } catch {
       if (loadingEl) loadingEl.textContent = 'Gagal memuat data progres.';
     }

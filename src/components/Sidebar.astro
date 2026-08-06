@@ -1,14 +1,27 @@
 ---
 import { getCollection, type CollectionEntry } from 'astro:content';
-import { DOMAIN_GROUPS, LANGUAGE_CATEGORY_ORDER, LANGUAGE_CATEGORY_LABELS } from '../lib/domainGroups';
+import { DOMAIN_GROUPS, KNOWLEDGE_DOMAINS, LANGUAGE_CATEGORY_ORDER, LANGUAGE_CATEGORY_LABELS } from '../lib/domainGroups';
 import { iconForDomain } from '../lib/pixelIcons';
 import PixelIcon from './ornaments/PixelIcon.astro';
 
 const terms = await getCollection('terms');
 const languages = await getCollection('languages');
+const knowledge = await getCollection('knowledge');
 
 const domainSlugByName = new Map<string, string>();
 for (const t of terms) domainSlugByName.set(t.data.domain, t.data.domainSlug);
+
+const knowledgeDomainSlugByName = new Map<string, string>();
+const knowledgeNotesByDomain = new Map<string, CollectionEntry<'knowledge'>[]>();
+for (const k of knowledge) {
+  knowledgeDomainSlugByName.set(k.data.domain, k.data.domainSlug);
+  if (k.data.isMoc) continue;
+  if (!knowledgeNotesByDomain.has(k.data.domain)) knowledgeNotesByDomain.set(k.data.domain, []);
+  knowledgeNotesByDomain.get(k.data.domain)!.push(k);
+}
+for (const list of knowledgeNotesByDomain.values()) {
+  list.sort((a, b) => a.data.title.localeCompare(b.data.title));
+}
 
 const languagesByCategory = new Map<string, CollectionEntry<'languages'>[]>();
 for (const l of languages) {
@@ -25,6 +38,7 @@ const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
 const isActive = (href: string) => currentPath === href;
 const inLanguages = currentPath.startsWith('/languages');
 const inTerms = currentPath.startsWith('/terms');
+const inKnowledgeDomain = (slug: string) => currentPath === `/${slug}` || currentPath.startsWith(`/${slug}/`);
 ---
 
 <nav class="sidebar" aria-label="Primary">
@@ -84,6 +98,36 @@ const inTerms = currentPath.startsWith('/terms');
       ))}
     </div>
   </details>
+
+  {KNOWLEDGE_DOMAINS.map((domain) => {
+    const slug = knowledgeDomainSlugByName.get(domain);
+    const notes = knowledgeNotesByDomain.get(domain) ?? [];
+    if (!slug || notes.length === 0) return null;
+    return (
+      <details class="nav-group" open={inKnowledgeDomain(slug)}>
+        <summary>
+          <PixelIcon name={iconForDomain(domain)} size={15} /> <span>{domain}</span>
+          <span class="sidebar-mastery-badge" data-mastery-key={slug} hidden data-tooltip="Semua catatan di domain ini sudah dikuasai">
+            <PixelIcon name="badge" size={11} />
+          </span>
+        </summary>
+        <div class="nav-group-body">
+          <ul class="knowledge-list">
+            {notes.map((note) => {
+              const href = `/${slug}/${note.data.slug}`;
+              return (
+                <li>
+                  <a href={href} aria-current={isActive(href) ? 'page' : undefined}>
+                    <span>{note.data.title}</span>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </details>
+    );
+  })}
 </nav>
 
 <script>
@@ -98,7 +142,7 @@ const inTerms = currentPath.startsWith('/terms');
       const res = await fetch('/mastery-index.json');
       const data: MasteryIndex = await res.json();
       const states = loadStates();
-      const progress = computeGroupProgress(data.termGroups, states);
+      const progress = computeGroupProgress([...data.termGroups, ...data.knowledgeGroups], states);
       const mastered = new Set(progress.filter((g) => g.isFullyMastered).map((g) => g.key));
       document.querySelectorAll<HTMLElement>('[data-mastery-key]').forEach((el) => {
         const key = el.dataset.masteryKey;
@@ -213,6 +257,33 @@ const inTerms = currentPath.startsWith('/terms');
     color: var(--ink);
   }
   .nav-subgroup a[aria-current='page'] {
+    background: var(--bg-inset);
+    color: var(--accent);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+
+  .knowledge-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0.4rem 0.15rem;
+  }
+  .knowledge-list a {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.28rem 0.4rem;
+    border-radius: 3px;
+    color: var(--ink-muted);
+    text-decoration: none;
+    border-bottom: none;
+    line-height: 1.3;
+  }
+  .knowledge-list a:hover {
+    background: var(--bg-inset);
+    color: var(--ink);
+  }
+  .knowledge-list a[aria-current='page'] {
     background: var(--bg-inset);
     color: var(--accent);
     font-weight: 600;

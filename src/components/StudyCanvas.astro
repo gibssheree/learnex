@@ -10,14 +10,29 @@ const { route, title } = Astro.props;
 
 const terms = await getCollection('terms');
 const languages = await getCollection('languages');
+const knowledge = await getCollection('knowledge');
+
+// One option per domain, not per note — dedupe by domain name since every
+// note in a domain would otherwise produce an identical "jump to this hub"
+// option.
+function uniqueDomains<T extends { data: { domain: string; domainSlug: string } }>(entries: T[]): T[] {
+  const seen = new Set<string>();
+  return entries.filter((e) => {
+    if (seen.has(e.data.domain)) return false;
+    seen.add(e.data.domain);
+    return true;
+  });
+}
 
 const allTopics = [
   ...languages.filter(l => !l.data.isMoc).map(l => ({ label: l.data.title, route: `/languages/${l.data.slug}`, group: 'Languages' })),
-  ...terms.map(t => ({ label: t.data.domain, route: `/terms/${t.data.domainSlug}`, group: 'Terms' }))
+  ...uniqueDomains(terms).map(t => ({ label: t.data.domain, route: `/terms/${t.data.domainSlug}`, group: 'Terms' })),
+  ...uniqueDomains(knowledge).map(k => ({ label: k.data.domain, route: `/${k.data.domainSlug}`, group: 'Knowledge' })),
 ].sort((a, b) => a.label.localeCompare(b.label));
 
 const languagesGroup = allTopics.filter(t => t.group === 'Languages');
 const termsGroup = allTopics.filter(t => t.group === 'Terms');
+const knowledgeGroup = allTopics.filter(t => t.group === 'Knowledge');
 ---
 
 <div id="study-canvas-overlay" class="study-canvas-overlay" data-pagefind-ignore hidden data-route={route}>
@@ -33,6 +48,11 @@ const termsGroup = allTopics.filter(t => t.group === 'Terms');
           </optgroup>
           <optgroup label="Terms">
             {termsGroup.map(t => (
+              <option value={t.route} selected={t.route === route}>{t.label}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Knowledge">
+            {knowledgeGroup.map(t => (
               <option value={t.route} selected={t.route === route}>{t.label}</option>
             ))}
           </optgroup>

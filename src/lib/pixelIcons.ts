@@ -335,6 +335,11 @@ export const DOMAIN_ICONS: Record<string, PixelIconName> = {
   'Testing Tools and Frameworks': 'check',
   'Theory of Computation': 'book',
   'Programming Languages': 'scroll',
+  'Founders and Executives': 'coin',
+  'Finance and Economics': 'coin',
+  'Physics': 'sun',
+  'Chemistry': 'flask',
+  'Electrical and Electronics Engineering': 'chip',
 };
 
 export function iconForDomain(domain: string): PixelIconName {

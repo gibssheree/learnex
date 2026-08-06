@@ -9,6 +9,11 @@ export const prerender = false;
 // the API URL directly from a page URL they already have:
 //   /languages/python        -> /api/v1/notes/languages/python.json
 //   /terms/full-stack/rest-api -> /api/v1/notes/terms/full-stack/rest-api.json
+//   /physics/entropy         -> /api/v1/notes/physics/entropy.json
+// The standalone knowledge domains (Founders and Executives, Finance and
+// Economics, Physics, Chemistry, Electrical and Electronics Engineering)
+// live at the URL root with no fixed prefix segment, same as on the site
+// itself, so they're matched last against whatever two-part path remains.
 export const GET: APIRoute = async (context) => {
   const rl = checkRateLimit(context.clientAddress);
   if (rl.limited) return rateLimitedResponse(rl.retryAfterSeconds);
@@ -16,7 +21,7 @@ export const GET: APIRoute = async (context) => {
   const parts = (context.params.route ?? '').split('/').filter(Boolean);
 
   let publicRoute: string | null = null;
-  let collection: 'languages' | 'terms' | null = null;
+  let collection: 'languages' | 'terms' | 'knowledge' | null = null;
   let entryData: {
     title: string;
     domain: string;
@@ -40,6 +45,14 @@ export const GET: APIRoute = async (context) => {
     if (entry) {
       collection = 'terms';
       publicRoute = `/terms/${entry.data.domainSlug}/${entry.data.slug}`;
+      entryData = { title: entry.data.title, domain: entry.data.domain, tags: entry.data.tags, summary: entry.data.summary, body: entry.body };
+    }
+  } else if (parts.length === 2) {
+    const knowledge = await getCollection('knowledge');
+    const entry = knowledge.find((k) => k.data.domainSlug === parts[0] && k.data.slug === parts[1] && !k.data.isMoc);
+    if (entry) {
+      collection = 'knowledge';
+      publicRoute = `/${entry.data.domainSlug}/${entry.data.slug}`;
       entryData = { title: entry.data.title, domain: entry.data.domain, tags: entry.data.tags, summary: entry.data.summary, body: entry.body };
     }
   }

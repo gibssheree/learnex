@@ -12,7 +12,11 @@ export const GET: APIRoute = async (context) => {
   const rl = checkRateLimit(context.clientAddress);
   if (rl.limited) return rateLimitedResponse(rl.retryAfterSeconds);
 
-  const [languages, terms] = await Promise.all([getCollection('languages'), getCollection('terms')]);
+  const [languages, terms, knowledge] = await Promise.all([
+    getCollection('languages'),
+    getCollection('terms'),
+    getCollection('knowledge'),
+  ]);
 
   const notes = [
     ...languages
@@ -34,6 +38,16 @@ export const GET: APIRoute = async (context) => {
         domain: t.data.domain,
         tags: t.data.tags,
         summary: t.data.summary,
+      })),
+    ...knowledge
+      .filter((k) => !k.data.isMoc)
+      .map((k) => ({
+        route: `/${k.data.domainSlug}/${k.data.slug}`,
+        title: k.data.title,
+        collection: 'knowledge' as const,
+        domain: k.data.domain,
+        tags: k.data.tags,
+        summary: k.data.summary,
       })),
   ];
 

@@ -9,7 +9,11 @@ interface RawNote {
 }
 
 export const GET: APIRoute = async () => {
-  const [languages, terms] = await Promise.all([getCollection('languages'), getCollection('terms')]);
+  const [languages, terms, knowledge] = await Promise.all([
+    getCollection('languages'),
+    getCollection('terms'),
+    getCollection('knowledge'),
+  ]);
 
   const allNotes: RawNote[] = [
     ...languages
@@ -22,6 +26,14 @@ export const GET: APIRoute = async () => {
         title: t.data.title,
         summary: t.data.summary,
         links: t.data.links,
+      })),
+    ...knowledge
+      .filter((k) => !k.data.isMoc)
+      .map((k) => ({
+        route: `/${k.data.domainSlug}/${k.data.slug}`,
+        title: k.data.title,
+        summary: k.data.summary,
+        links: k.data.links,
       })),
   ];
 

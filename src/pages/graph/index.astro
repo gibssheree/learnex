@@ -8,6 +8,14 @@ const LEGEND = [
   { label: 'Toolchain & Delivery', color: '#3f6b52' },
   { label: 'Product, Design & Emerging Fields', color: '#7c4a2d' },
   { label: 'Specialized Domains', color: '#5c4a72' },
+  // Each standalone knowledge domain gets its own color rather than being
+  // clustered into a shared bucket — they're independent sections, not a
+  // Terms & Knowledge sub-group.
+  { label: 'Founders and Executives', color: '#8a3d72' },
+  { label: 'Finance and Economics', color: '#b8672c' },
+  { label: 'Physics', color: '#2c7a7b' },
+  { label: 'Chemistry', color: '#5c8f3f' },
+  { label: 'Electrical and Electronics Engineering', color: '#4a4a9e' },
 ];
 ---
 
@@ -64,6 +72,11 @@ const LEGEND = [
     'Toolchain & Delivery': '#3f6b52',
     'Product, Design & Emerging Fields': '#7c4a2d',
     'Specialized Domains': '#5c4a72',
+    'Founders and Executives': '#8a3d72',
+    'Finance and Economics': '#b8672c',
+    Physics: '#2c7a7b',
+    Chemistry: '#5c8f3f',
+    'Electrical and Electronics Engineering': '#4a4a9e',
   };
 
   const canvas = document.getElementById('graph-canvas') as HTMLCanvasElement | null;

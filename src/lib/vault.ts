@@ -17,6 +17,19 @@ export const VAULT_ROOT = path.resolve(PROJECT_ROOT, 'content');
 export const LANGUAGES_DIR = path.join(VAULT_ROOT, 'Programming Languages');
 export const TERMS_DIR = path.join(VAULT_ROOT, 'Terms and Knowledge');
 
+/** Domains outside computer science, each living in its own top-level content
+ * root (sibling to "Programming Languages" and "Terms and Knowledge") rather
+ * than nested under either — these are standalone sections in their own
+ * right, not CS sub-topics and not one shared "general knowledge" bucket. */
+export const KNOWLEDGE_DOMAINS = [
+  'Founders and Executives',
+  'Finance and Economics',
+  'Physics',
+  'Chemistry',
+  'Electrical and Electronics Engineering',
+];
+export const KNOWLEDGE_ROOTS = KNOWLEDGE_DOMAINS.map((name) => path.join(VAULT_ROOT, name));
+
 const SKIP_DIRS = new Set(['_Templates']);
 
 /** Turns a raw note title into a URL-safe, collision-free slug. Symbols that carry
@@ -65,14 +78,15 @@ function walk(dir: string, domainOverride?: string): VaultFile[] {
   return out;
 }
 
-let _cache: { languages: VaultFile[]; terms: VaultFile[] } | null = null;
+let _cache: { languages: VaultFile[]; terms: VaultFile[]; knowledge: VaultFile[] } | null = null;
 
-/** Walks both vault source trees once and caches the result for this process. */
+/** Walks all vault source trees once and caches the result for this process. */
 export function listVaultFiles() {
   if (_cache) return _cache;
   _cache = {
     languages: walk(LANGUAGES_DIR, 'Programming Languages'),
     terms: walk(TERMS_DIR),
+    knowledge: KNOWLEDGE_ROOTS.flatMap((root) => walk(root, path.basename(root))),
   };
   return _cache;
 }
@@ -90,14 +104,14 @@ export function clearVaultCache() {
  * unrelated fs events. */
 export function isVaultMarkdownPath(filePath: string): boolean {
   if (!filePath.toLowerCase().endsWith('.md')) return false;
-  return [LANGUAGES_DIR, TERMS_DIR].some((root) => {
+  return [LANGUAGES_DIR, TERMS_DIR, ...KNOWLEDGE_ROOTS].some((root) => {
     const rel = path.relative(root, filePath);
     return rel !== '' && rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
   });
 }
 
 export interface LinkTarget {
-  collection: 'languages' | 'terms';
+  collection: 'languages' | 'terms' | 'knowledge';
   domainSlug: string;
   slug: string;
   title: string;
@@ -106,7 +120,7 @@ export interface LinkTarget {
 /** Global title -> route map so any [[wikilink]] anywhere in the vault resolves,
  * regardless of which collection or domain it points into. */
 export function buildLinkMap(): Map<string, LinkTarget> {
-  const { languages, terms } = listVaultFiles();
+  const { languages, terms, knowledge } = listVaultFiles();
   const map = new Map<string, LinkTarget>();
   for (const f of languages) {
     map.set(f.title.toLowerCase(), {
@@ -124,6 +138,14 @@ export function buildLinkMap(): Map<string, LinkTarget> {
       title: f.title,
     });
   }
+  for (const f of knowledge) {
+    map.set(f.title.toLowerCase(), {
+      collection: 'knowledge',
+      domainSlug: f.domainSlug,
+      slug: f.slug,
+      title: f.title,
+    });
+  }
   return map;
 }
 
@@ -131,6 +153,11 @@ export function routeFor(target: LinkTarget): string {
   const isMoc = /\bMOC$/i.test(target.title);
   if (target.collection === 'languages') {
     return isMoc ? '/languages' : `/languages/${target.slug}`;
+  }
+  if (target.collection === 'knowledge') {
+    // Standalone domains live at the URL root, not nested under /terms —
+    // each one (Chemistry, Physics, ...) is its own top-level section.
+    return isMoc ? `/${target.domainSlug}` : `/${target.domainSlug}/${target.slug}`;
   }
   return isMoc ? `/terms/${target.domainSlug}` : `/terms/${target.domainSlug}/${target.slug}`;
 }

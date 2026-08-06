@@ -1,5 +1,6 @@
 import type { Loader, LoaderContext } from 'astro/loaders';
 import {
+  KNOWLEDGE_ROOTS,
   LANGUAGES_DIR,
   TERMS_DIR,
   buildLinkMap,
@@ -14,14 +15,14 @@ import {
 import { injectCodeSandboxes } from '../lib/sandbox-markdown';
 
 interface VaultLoaderOptions {
-  collection: 'languages' | 'terms';
+  collection: 'languages' | 'terms' | 'knowledge';
 }
 
 /** Full re-ingestion of one collection: re-walks the vault, rebuilds the
  * vault-wide wikilink map (a note anywhere can affect how any other note's
  * links resolve, so there's no cheaper correct option than redoing all of
  * it), and replaces the store contents. */
-async function syncCollection(context: LoaderContext, collection: 'languages' | 'terms') {
+async function syncCollection(context: LoaderContext, collection: 'languages' | 'terms' | 'knowledge') {
   const { store, renderMarkdown, generateDigest } = context;
   const files: VaultFile[] = listVaultFiles()[collection];
   const linkMap = buildLinkMap();
@@ -79,6 +80,7 @@ export function vaultLoader({ collection }: VaultLoaderOptions): Loader {
 
       watcher.add(LANGUAGES_DIR);
       watcher.add(TERMS_DIR);
+      for (const root of KNOWLEDGE_ROOTS) watcher.add(root);
 
       let reloadTimer: ReturnType<typeof setTimeout> | undefined;
       const scheduleReload = (changedPath: string) => {

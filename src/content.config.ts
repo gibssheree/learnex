@@ -24,4 +24,9 @@ const terms = defineCollection({
   schema: noteSchema,
 });
 
-export const collections = { languages, terms };
+const knowledge = defineCollection({
+  loader: vaultLoader({ collection: 'knowledge' }),
+  schema: noteSchema,
+});
+
+export const collections = { languages, terms, knowledge };

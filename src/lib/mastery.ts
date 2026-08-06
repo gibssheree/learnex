@@ -15,13 +15,14 @@ export interface MasteryNote {
 export interface MasteryGroup {
   key: string;
   label: string;
-  kind: 'language-category' | 'term-domain';
+  kind: 'language-category' | 'term-domain' | 'knowledge-domain';
   notes: MasteryNote[];
 }
 
 export interface MasteryIndex {
   languageGroups: MasteryGroup[];
   termGroups: MasteryGroup[];
+  knowledgeGroups: MasteryGroup[];
 }
 
 export interface GroupProgress {

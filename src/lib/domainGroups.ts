@@ -53,6 +53,18 @@ export const DOMAIN_GROUPS: DomainGroup[] = [
   },
 ];
 
+/** Domains outside computer science, each its own standalone top-level
+ * section in the sidebar and site nav (not grouped under Terms & Knowledge,
+ * and not clustered together into one shared bucket either) — mirrors
+ * KNOWLEDGE_DOMAINS in src/lib/vault.ts. */
+export const KNOWLEDGE_DOMAINS = [
+  'Founders and Executives',
+  'Finance and Economics',
+  'Physics',
+  'Chemistry',
+  'Electrical and Electronics Engineering',
+];
+
 export const LANGUAGE_CATEGORY_ORDER = [
   'Systems',
   'OOP/Enterprise',

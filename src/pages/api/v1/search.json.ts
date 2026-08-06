@@ -30,7 +30,11 @@ export const GET: APIRoute = async (context) => {
   const q = (url.searchParams.get('q') ?? '').trim();
   if (!q) return apiJson({ error: 'Missing required query parameter "q".' }, 400);
 
-  const [languages, terms] = await Promise.all([getCollection('languages'), getCollection('terms')]);
+  const [languages, terms, knowledge] = await Promise.all([
+    getCollection('languages'),
+    getCollection('terms'),
+    getCollection('knowledge'),
+  ]);
 
   const notes = [
     ...languages
@@ -39,6 +43,9 @@ export const GET: APIRoute = async (context) => {
     ...terms
       .filter((t) => !t.data.isMoc)
       .map((t) => ({ route: `/terms/${t.data.domainSlug}/${t.data.slug}`, title: t.data.title, summary: t.data.summary, tags: t.data.tags })),
+    ...knowledge
+      .filter((k) => !k.data.isMoc)
+      .map((k) => ({ route: `/${k.data.domainSlug}/${k.data.slug}`, title: k.data.title, summary: k.data.summary, tags: k.data.tags })),
   ];
 
   const results = notes

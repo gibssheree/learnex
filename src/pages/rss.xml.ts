@@ -10,12 +10,16 @@ const SITE_URL = 'https://learnex.example.com';
 const MAX_ITEMS = 50;
 
 export const GET: APIRoute = async () => {
-  const { languages, terms } = listVaultFiles();
+  const { languages, terms, knowledge } = listVaultFiles();
 
-  const items = [...languages, ...terms]
+  const items = [...languages, ...terms, ...knowledge]
     .filter((file) => !file.isMoc)
     .map((file) => {
-      const collection: LinkTarget['collection'] = languages.includes(file) ? 'languages' : 'terms';
+      const collection: LinkTarget['collection'] = languages.includes(file)
+        ? 'languages'
+        : terms.includes(file)
+          ? 'terms'
+          : 'knowledge';
       const { body } = readNote(file);
       return {
         title: file.title,
@@ -29,7 +33,7 @@ export const GET: APIRoute = async () => {
 
   return rss({
     title: 'Learnex',
-    description: 'An illustrated archive of programming languages and computer-science knowledge.',
+    description: 'An illustrated archive of programming languages, computer science, and beyond.',
     site: SITE_URL,
     items,
   });

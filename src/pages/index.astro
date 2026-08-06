@@ -7,7 +7,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import CornerFrame from '../components/ornaments/CornerFrame.astro';
 import MeanderDivider from '../components/ornaments/MeanderDivider.astro';
 import PixelIcon from '../components/ornaments/PixelIcon.astro';
-import { DOMAIN_GROUPS, LANGUAGE_CATEGORY_ORDER, LANGUAGE_CATEGORY_LABELS } from '../lib/domainGroups';
+import { DOMAIN_GROUPS, KNOWLEDGE_DOMAINS, LANGUAGE_CATEGORY_ORDER, LANGUAGE_CATEGORY_LABELS } from '../lib/domainGroups';
 
 // Drop a file at public/images/hero.(jpg|jpeg|png|webp) and it appears here
 // automatically on the next build/dev reload — no code change needed.
@@ -17,9 +17,11 @@ const heroImage = heroCandidates.find((rel) => fs.existsSync(path.join(publicDir
 
 const languages = await getCollection('languages');
 const terms = await getCollection('terms');
+const knowledge = await getCollection('knowledge');
 
 const languageNotes = languages.filter((l) => !l.data.isMoc);
 const termNotes = terms.filter((t) => !t.data.isMoc);
+const knowledgeNotes = knowledge.filter((k) => !k.data.isMoc);
 const knownCount = languageNotes.filter((l) => l.data.status === 'known').length;
 
 const domainSlugByName = new Map<string, string>();
@@ -27,6 +29,13 @@ const domainCountByName = new Map<string, number>();
 for (const t of termNotes) {
   domainSlugByName.set(t.data.domain, t.data.domainSlug);
   domainCountByName.set(t.data.domain, (domainCountByName.get(t.data.domain) ?? 0) + 1);
+}
+
+const knowledgeDomainSlugByName = new Map<string, string>();
+const knowledgeCountByName = new Map<string, number>();
+for (const k of knowledgeNotes) {
+  knowledgeDomainSlugByName.set(k.data.domain, k.data.domainSlug);
+  knowledgeCountByName.set(k.data.domain, (knowledgeCountByName.get(k.data.domain) ?? 0) + 1);
 }
 
 // Portal-page groupings: same category buckets as /languages, same domain
@@ -49,9 +58,10 @@ const totalDomains = DOMAIN_GROUPS.reduce((sum, g) => sum + g.domains.length, 0)
         <p class="font-pixel hero-kicker">A vault, made book</p>
         <h1 class="hero-title">Learnex</h1>
         <p class="hero-tagline">
-          {languageNotes.length} programming languages and {termNotes.length} terms in computer
-          science, written up and bound into one illustrated archive. Read it like a book, browse
-          it like a library, search it like an index.
+          {languageNotes.length} programming languages, {termNotes.length} terms in computer
+          science, and {knowledgeNotes.length} more across founders, finance, physics, chemistry,
+          and electrical engineering, written up and bound into one illustrated archive. Read it
+          like a book, browse it like a library, search it like an index.
         </p>
         <div class="hero-actions">
           <a class="btn btn-primary" href="/languages">Enter the Hall of Languages</a>
@@ -163,6 +173,35 @@ const totalDomains = DOMAIN_GROUPS.reduce((sum, g) => sum + g.domains.length, 0)
           </div>
         </div>
       </section>
+
+      <section class="wiki-section">
+        <h2 class="wiki-heading">
+          <PixelIcon name="badge" size={18} /> Beyond Computer Science
+        </h2>
+        <div class="wiki-lead wiki-lead--no-figure">
+          <div class="wiki-lead-body">
+            <p class="wiki-lead-text">
+              {knowledgeNotes.length} notes across subjects outside computer science, each its own
+              standalone section rather than a Terms &amp; Knowledge sub-domain.
+            </p>
+            <div class="wiki-list-group">
+              <p class="wiki-list-inline">
+                {KNOWLEDGE_DOMAINS.map((domain, i) => {
+                  const slug = knowledgeDomainSlugByName.get(domain);
+                  const count = knowledgeCountByName.get(domain) ?? 0;
+                  return (
+                    <>
+                      <a href={`/${slug}`}>{domain}</a> <span class="wiki-count">({count})</span>
+                      {i < KNOWLEDGE_DOMAINS.length - 1 ? ', ' : ''}
+                    </>
+                  );
+                })}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="wiki-section">
         <h2 class="wiki-heading">
           <PixelIcon name="sun" size={18} /> Dare to Know
@@ -415,6 +454,9 @@ const totalDomains = DOMAIN_GROUPS.reduce((sum, g) => sum + g.domains.length, 0)
     grid-template-columns: 21rem minmax(0, 1fr);
     gap: 2.75rem;
     align-items: start;
+  }
+  .wiki-lead--no-figure {
+    grid-template-columns: minmax(0, 1fr);
   }
   .wiki-lead-figure {
     margin: 0;
