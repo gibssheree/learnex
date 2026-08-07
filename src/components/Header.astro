@@ -174,6 +174,58 @@ import NavbarScene from './NavbarScene.astro';
       <PixelIcon name="info" size={16} />
     </a>
 
+    <!-- Mobile-only: everything in .toolbar-group is hidden at <=640px (see
+         that media query below) in favor of this one button. Its panel
+         doesn't duplicate their behavior — each row delegates (.click()) to
+         the real, still-present-but-hidden button, so there's exactly one
+         source of truth for every action's logic. -->
+    <div class="tool-popover-wrap more-tools-wrap">
+      <button
+        id="more-tools-btn"
+        class="tool-btn more-tools-btn"
+        type="button"
+        aria-label="More tools"
+        aria-expanded="false"
+        data-tooltip="More tools"
+        data-tooltip-pos="bottom"
+      >
+        <PixelIcon name="dots" size={16} />
+      </button>
+      <div id="more-tools-panel" class="tool-panel more-tools-panel" hidden>
+        <a href="/graph" class="more-tools-row">
+          <PixelIcon name="graph" size={14} /> <span>Knowledge graph</span>
+        </a>
+        <a href="/review" class="more-tools-row">
+          <PixelIcon name="check" size={14} /> <span>Flashcard review</span>
+        </a>
+        <button type="button" class="more-tools-row" data-delegate="random-note-btn">
+          <PixelIcon name="dice" size={14} /> <span>Random note</span>
+        </button>
+        <button type="button" class="more-tools-row" data-delegate="assistant-toggle-btn">
+          <PixelIcon name="chat" size={14} /> <span>Study Assistant</span>
+        </button>
+        <button type="button" class="more-tools-row" data-delegate="command-palette-btn">
+          <span class="more-tools-row-glyph">⌘K</span> <span>Command palette</span>
+        </button>
+        <button type="button" class="more-tools-row" data-delegate="bookmarks-btn">
+          <PixelIcon name="star" size={14} /> <span>Bookmarks</span>
+        </button>
+        <button type="button" class="more-tools-row" data-delegate="text-size-btn">
+          <span class="more-tools-row-glyph">Aa</span> <span>Text size</span>
+        </button>
+        <button type="button" class="more-tools-row" data-delegate="crt-toggle-btn">
+          <PixelIcon name="tv" size={14} /> <span>Retro CRT mode</span>
+        </button>
+        <button type="button" class="more-tools-row" data-delegate="ipad-mode-toggle-btn">
+          <PixelIcon name="tablet" size={14} /> <span>iPad mode</span>
+        </button>
+        <button type="button" class="more-tools-row" data-delegate="navbar-hide-btn">
+          <PixelIcon name="chevronUp" size={14} /> <span>Hide navbar</span>
+        </button>
+        <p class="more-tools-motto">Sapere Aude</p>
+      </div>
+    </div>
+
     <NavbarScene />
   </div>
 </header>
@@ -333,12 +385,28 @@ import NavbarScene from './NavbarScene.astro';
   }
   registerPopover('bookmarks-btn', 'bookmarks-panel');
   registerPopover('text-size-btn', 'text-size-panel');
+  registerPopover('more-tools-btn', 'more-tools-panel');
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
     if (!target.closest?.('.tool-popover-wrap')) closeAllPopovers();
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeAllPopovers();
+  });
+
+  // ---------- Mobile "more tools" dropdown — delegates to the real buttons ----------
+  // Every action-row here just re-clicks the actual button it stands in
+  // for (still in the DOM, hidden at this breakpoint rather than removed),
+  // so there's exactly one implementation of each action's logic — this
+  // never duplicates it. Closing this dropdown first (closeAllPopovers)
+  // means it's out of the way before the delegate's own handler runs,
+  // whether or not that handler is itself part of the popover system.
+  document.querySelectorAll<HTMLElement>('#more-tools-panel [data-delegate]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const targetId = row.dataset.delegate;
+      closeAllPopovers();
+      if (targetId) document.getElementById(targetId)?.click();
+    });
   });
 
   // ---------- Bookmarks panel ----------
@@ -751,12 +819,18 @@ import NavbarScene from './NavbarScene.astro';
   .tool-popover-wrap {
     position: relative;
   }
+  /* Fixed (not absolute-relative-to-wrap) so a panel keeps rendering even
+     when its trigger button is hidden inside a collapsed/display:none
+     ancestor — the mobile "more tools" dropdown delegates clicks to these
+     same buttons rather than duplicating their panels, and a hidden
+     ancestor suppresses descendants regardless of the descendant's own
+     position value, so this had to be decoupled from the wrap entirely. */
   .tool-panel {
-    position: absolute;
-    top: calc(100% + 0.5rem);
-    right: 0;
+    position: fixed;
+    top: calc(var(--header-h) + 0.6rem);
+    right: 1.5rem;
     width: 17rem;
-    max-height: 22rem;
+    max-height: min(22rem, calc(100vh - var(--header-h) - 1.5rem));
     overflow-y: auto;
     background: var(--bg-elevated);
     border: 1px solid var(--border);
@@ -764,6 +838,7 @@ import NavbarScene from './NavbarScene.astro';
     box-shadow: 0 16px 32px -12px hsl(var(--shadow-color) / 0.55);
     padding: 0.75rem;
     z-index: 55;
+    transition: top 0.32s ease;
   }
   .tool-panel-narrow {
     width: 9rem;
@@ -838,6 +913,60 @@ import NavbarScene from './NavbarScene.astro';
     color: var(--accent);
   }
 
+  /* ---------- "More tools" — mobile-only stand-in for .toolbar-group ---------- */
+  .more-tools-btn {
+    display: none;
+  }
+  .more-tools-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.5rem;
+  }
+  .more-tools-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.6rem;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    text-decoration: none;
+    text-align: left;
+    cursor: pointer;
+  }
+  .more-tools-row:hover {
+    background: var(--bg-inset);
+    color: var(--accent);
+    border-bottom: none;
+  }
+  .more-tools-row :global(.pixel-icon) {
+    flex-shrink: 0;
+    color: var(--brass);
+  }
+  .more-tools-row-glyph {
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    color: var(--brass);
+  }
+  .more-tools-motto {
+    margin: 0.5rem 0 0.1rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-display);
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+    font-style: italic;
+    color: var(--brass);
+    text-align: center;
+  }
+
   @media (max-width: 980px) {
     .tool-btn-text,
     #crt-toggle-btn {
@@ -896,51 +1025,42 @@ import NavbarScene from './NavbarScene.astro';
     }
   }
 
-  /* Phone-width toolbar — the row above (wordmark, search, ~9 toolbar
-     buttons, theme toggle, about link) never wraps, so past a certain point
-     it has to actually shed weight instead of just shrinking: this was
-     overflowing the viewport itself (not just looking cramped) down to
-     roughly double the screen width on a 375px phone, which corrupted
-     layout for every other fixed/full-width element on the page, not just
-     the header. Priority kept: search, and the four highest-traffic
-     actions (graph, review, random note, bookmarks). Everything hidden
-     here has an equivalent reachable elsewhere — About is also linked from
-     the homepage, iPad Mode doesn't apply to a phone, and hiding the
-     navbar is a screen-space convenience that matters far less on a
-     device this narrow than the toolbar space it costs.
-
-     Deliberately placed last in this stylesheet, not just inside its own
-     media query: `.about-btn` shares equal specificity with `.tool-btn`
-     (which sets `display: flex`), and CSS breaks that kind of tie by
-     source order, not by which rule "sounds like" the override — earlier
-     in the file, this block's `display: none` silently lost to
-     `.tool-btn`'s later declaration despite the media query correctly
-     matching. Last-in-file is what actually makes it win. */
+  /* Phone-width header — everything in .toolbar-group (graph, review,
+     random note, Study Assistant, command palette, bookmarks, text size,
+     CRT mode, iPad mode, hide navbar — 10 controls) collapses into the
+     single "more tools" button instead of getting individually hidden or
+     shrunk. `.toolbar-group .tool-btn` (two classes) naturally outranks
+     `.tool-btn`'s own `display: flex` (one class) on specificity alone, so
+     unlike `.more-tools-btn` below this doesn't need source-order games to
+     win. What's left in the row — sidebar toggle, wordmark, theme toggle,
+     about link, more-tools button — is light enough that this was never
+     the overflow risk the old many-icon row was; flex-wrap stays on
+     anyway, as a backstop against anything added here later. */
   @media (max-width: 640px) {
     .site-header-row {
       gap: 0.5rem;
       row-gap: 0.4rem;
       padding: 0.5rem 0.65rem;
-      /* Hiding buttons alone got tight again the moment a feature (Study
-         Assistant) added a 5th always-visible toolbar icon back in —
-         wrapping is the version of this that can't silently regress into
-         off-screen overflow just because the icon count changes later. */
       flex-wrap: wrap;
     }
     .search-slot {
       order: 1;
       flex-basis: 100%;
     }
-    .wordmark-text {
-      display: none;
-    }
     .wordmark-logo {
       height: 32px;
     }
-    .about-btn,
-    #ipad-mode-toggle-btn,
-    #navbar-hide-btn {
+    .toolbar-group .tool-btn {
       display: none;
+    }
+    .more-tools-btn {
+      display: flex;
+    }
+    /* .about-btn's -1rem margin compensates for .site-header-row's 1.5rem
+       desktop gap specifically — at this breakpoint's 0.5rem gap that
+       negative margin overshoots and pulls it into .theme-toggle. */
+    .about-btn {
+      margin-left: 0;
     }
   }
 </style>
