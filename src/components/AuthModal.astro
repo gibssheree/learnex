@@ -1,0 +1,306 @@
+---
+---
+
+<div id="auth-modal-overlay" class="auth-overlay" hidden data-pagefind-ignore>
+  <div class="auth-box" role="dialog" aria-modal="true" aria-label="Account">
+    <header class="auth-header">
+      <p class="font-pixel auth-title">Account</p>
+      <button id="auth-modal-close-btn" class="auth-close" type="button" aria-label="Close">×</button>
+    </header>
+
+    <div id="auth-signed-out" class="auth-body" hidden>
+      <form id="auth-form" class="auth-form" novalidate>
+        <label class="auth-field">
+          <span>Email</span>
+          <input id="auth-email-input" type="email" autocomplete="email" required />
+        </label>
+        <label class="auth-field">
+          <span>Password</span>
+          <input id="auth-password-input" type="password" autocomplete="current-password" required minlength="6" />
+        </label>
+        <p id="auth-error" class="auth-error" hidden></p>
+        <button id="auth-submit-btn" class="auth-submit" type="submit">Log in</button>
+        <button id="auth-mode-toggle-btn" class="auth-mode-toggle" type="button">
+          Don't have an account? Sign up
+        </button>
+        <p class="auth-privacy">
+          We only store your email and password to run your account — no tracking, no analytics, no training on your data.
+        </p>
+      </form>
+    </div>
+
+    <div id="auth-signed-in" class="auth-body" hidden>
+      <p class="auth-signed-in-text">Signed in as <strong id="auth-signed-in-email"></strong></p>
+      <button id="auth-signout-btn" class="auth-submit auth-signout" type="button">Log out</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { signIn, signUp, signOut, getCurrentUserId, getCurrentEmail } from '../lib/auth-client';
+
+  const overlay      = document.getElementById('auth-modal-overlay');
+  const box          = overlay?.querySelector('.auth-box');
+  const closeBtn     = document.getElementById('auth-modal-close-btn');
+  const triggerBtn   = document.getElementById('auth-toggle-btn') as HTMLButtonElement | null;
+  const signedOutEl  = document.getElementById('auth-signed-out');
+  const signedInEl   = document.getElementById('auth-signed-in');
+  const form         = document.getElementById('auth-form') as HTMLFormElement | null;
+  const emailInput   = document.getElementById('auth-email-input') as HTMLInputElement | null;
+  const passwordInput = document.getElementById('auth-password-input') as HTMLInputElement | null;
+  const errorEl      = document.getElementById('auth-error');
+  const submitBtn    = document.getElementById('auth-submit-btn') as HTMLButtonElement | null;
+  const modeToggleBtn = document.getElementById('auth-mode-toggle-btn');
+  const signedInEmailEl = document.getElementById('auth-signed-in-email');
+  const signoutBtn   = document.getElementById('auth-signout-btn');
+
+  if (!overlay || !box) throw new Error('AuthModal: missing DOM nodes');
+
+  let mode: 'login' | 'signup' = 'login';
+
+  function setMode(next: 'login' | 'signup') {
+    mode = next;
+    if (submitBtn) submitBtn.textContent = mode === 'login' ? 'Log in' : 'Sign up';
+    if (modeToggleBtn) {
+      modeToggleBtn.textContent =
+        mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Log in';
+    }
+    hideError();
+  }
+
+  function showError(message: string) {
+    if (!errorEl) return;
+    errorEl.textContent = message;
+    errorEl.hidden = false;
+  }
+
+  function hideError() {
+    if (!errorEl) return;
+    errorEl.hidden = true;
+    errorEl.textContent = '';
+  }
+
+  /** Reflects current auth state onto the modal body and the header trigger
+   * button — called on every learnitas:auth-changed event, not just while
+   * the modal happens to be open. */
+  function render() {
+    const userId = getCurrentUserId();
+    const email = getCurrentEmail();
+
+    if (signedOutEl) signedOutEl.hidden = !!userId;
+    if (signedInEl) signedInEl.hidden = !userId;
+    if (signedInEmailEl) signedInEmailEl.textContent = email ?? '';
+
+    if (triggerBtn) {
+      triggerBtn.textContent = userId ? (email ?? 'Account') : 'Log in';
+      triggerBtn.setAttribute('aria-label', userId ? `Account: ${email ?? ''}` : 'Log in');
+    }
+  }
+
+  function open() {
+    overlay!.hidden = false;
+    hideError();
+    if (!getCurrentUserId()) {
+      setMode('login');
+      emailInput?.focus();
+    }
+  }
+
+  function close() {
+    overlay!.hidden = true;
+  }
+
+  triggerBtn?.addEventListener('click', open);
+  closeBtn?.addEventListener('click', close);
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !overlay!.hidden) close();
+  });
+
+  modeToggleBtn?.addEventListener('click', () => setMode(mode === 'login' ? 'signup' : 'login'));
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = emailInput?.value.trim();
+    const password = passwordInput?.value;
+    if (!email || !password || !submitBtn) return;
+
+    hideError();
+    submitBtn.disabled = true;
+    try {
+      const { error } = mode === 'login' ? await signIn(email, password) : await signUp(email, password);
+      if (error) {
+        showError(error);
+        return;
+      }
+      if (mode === 'signup' && !getCurrentUserId()) {
+        // Email confirmation is enabled on the Supabase project — no session
+        // yet, just tell the user to check their inbox rather than closing
+        // as if they were already logged in.
+        showError('Account created — check your email to confirm before logging in.');
+        return;
+      }
+      form.reset();
+      close();
+    } catch {
+      showError("Couldn't reach the server — check your connection.");
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  signoutBtn?.addEventListener('click', async () => {
+    if (signoutBtn instanceof HTMLButtonElement) signoutBtn.disabled = true;
+    try {
+      await signOut();
+      close();
+    } finally {
+      if (signoutBtn instanceof HTMLButtonElement) signoutBtn.disabled = false;
+    }
+  });
+
+  document.addEventListener('learnitas:auth-changed', render);
+  render();
+</script>
+
+<style>
+  .auth-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 12vh;
+    background: hsl(var(--shadow-color) / 0.55);
+  }
+  .auth-overlay[hidden] {
+    display: none;
+  }
+
+  .auth-box {
+    width: min(22rem, 92vw);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 24px 56px -16px hsl(var(--shadow-color) / 0.6);
+    overflow: hidden;
+    animation: auth-pop-in 0.15s ease both;
+  }
+  @keyframes auth-pop-in {
+    from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+  }
+
+  .auth-header {
+    position: relative;
+    padding: 0.9rem 2.4rem 0.7rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-inset);
+  }
+  .auth-title {
+    font-size: 0.65rem;
+    color: var(--brass);
+    letter-spacing: 0.05em;
+    margin: 0;
+  }
+  .auth-close {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .auth-close:hover { color: var(--accent); background: var(--bg-elevated); }
+
+  .auth-body {
+    padding: 1rem;
+  }
+  .auth-body[hidden] {
+    display: none;
+  }
+
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+  .auth-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    color: var(--ink-muted);
+  }
+  .auth-field input {
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    padding: 0.5rem 0.6rem;
+  }
+  .auth-field input:focus { outline: 2px solid var(--brass-bright); outline-offset: 1px; }
+
+  .auth-error {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--accent);
+  }
+
+  .auth-submit {
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 5px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    cursor: pointer;
+  }
+  .auth-submit:hover    { background: var(--accent-strong); }
+  .auth-submit:disabled { opacity: 0.55; cursor: wait; }
+
+  .auth-mode-toggle {
+    border: none;
+    background: transparent;
+    color: var(--ink-faint);
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    align-self: center;
+  }
+  .auth-mode-toggle:hover { color: var(--brass); }
+
+  .auth-privacy {
+    margin: 0.3rem 0 0;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    color: var(--ink-faint);
+  }
+
+  .auth-signed-in-text {
+    margin: 0 0 0.8rem;
+    font-size: 0.88rem;
+    color: var(--ink);
+  }
+  .auth-signout {
+    width: 100%;
+  }
+</style>

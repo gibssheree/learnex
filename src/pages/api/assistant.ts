@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { GoogleGenAI, FunctionCallingConfigMode, ThinkingLevel, type FunctionDeclaration } from '@google/genai';
 import { searchVault } from '../../lib/rag';
 import { DIAGRAM_INSTRUCTION, PERSONA_INSTRUCTIONS, isPersona, type Persona } from '../../lib/ai-personas';
+import { createSupabaseServerClient } from '../../lib/supabase-server';
 
 // Server-rendered on demand (everything else in the site stays static) —
 // this is the one route that needs a live request/response cycle to talk to
@@ -57,7 +58,21 @@ function systemInstruction(currentPage?: CurrentPage, persona: Persona = 'direct
     .join('\n');
 }
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
+  // Auth gate — checked before the GEMINI_API_KEY check or body parsing so
+  // an unauthenticated request never reaches Gemini (this is the actual
+  // cost-control boundary; StudyAssistant.astro's client-side gate is UX
+  // polish, not security). getUser() (not getSession()) round-trips to
+  // Supabase Auth to verify the JWT rather than just decoding the cookie,
+  // since a forged cookie would otherwise pass a local-only check.
+  const supabase = createSupabaseServerClient(request, cookies);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return json({ error: 'Log in to use the Study Assistant.' }, 401);
+  }
+
   if (!import.meta.env.GEMINI_API_KEY) {
     return json({ error: 'GEMINI_API_KEY is not configured on the server.' }, 500);
   }
@@ -72,6 +87,22 @@ export const POST: APIRoute = async ({ request }) => {
   const messages = body.messages ?? [];
   if (messages.length === 0) return json({ error: 'messages must be a non-empty array.' }, 400);
   const persona: Persona = isPersona(body.persona) ? body.persona : 'direct';
+
+  /** Upserts the full conversation (including this reply) into the user's
+   * one continuously-overwritten thread, then returns the reply. Awaited
+   * before returning — not fire-and-forget — since Vercel can freeze the
+   * function the instant a Response is returned, which would risk losing
+   * a write started after that point. */
+  async function persistAndRespond(text: string): Promise<Response> {
+    try {
+      await supabase
+        .from('assistant_threads')
+        .upsert({ messages: [...messages, { role: 'model', text }] }, { onConflict: 'user_id' });
+    } catch (err) {
+      console.error('[api/assistant] failed to persist chat history', err);
+    }
+    return json({ text });
+  }
 
   // The Gemini `contents` array: a running list of role-tagged turns. User/
   // model text turns come straight from the client; function-call and
@@ -102,7 +133,7 @@ export const POST: APIRoute = async ({ request }) => {
 
       const call = response.functionCalls?.[0];
       if (!call) {
-        return json({ text: response.text ?? "I couldn't find an answer to that." });
+        return persistAndRespond(response.text ?? "I couldn't find an answer to that.");
       }
 
       const query = typeof call.args?.query === 'string' ? call.args.query : '';
@@ -129,7 +160,7 @@ export const POST: APIRoute = async ({ request }) => {
       contents.push({ role: 'user', parts: [{ functionResponse: { name: call.name, response: { results } } }] });
     }
 
-    return json({ text: "I looked but couldn't pin down a good answer — try rephrasing your question?" });
+    return persistAndRespond("I looked but couldn't pin down a good answer — try rephrasing your question?");
   } catch (err) {
     console.error('[api/assistant]', err);
     return json({ error: 'The Study Assistant hit an error talking to Gemini. Check server logs.' }, 502);

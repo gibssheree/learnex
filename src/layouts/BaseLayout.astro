@@ -6,6 +6,7 @@ import Sidebar from '../components/Sidebar.astro';
 import PixelIcon from '../components/ornaments/PixelIcon.astro';
 import StudyAssistant from '../components/StudyAssistant.astro';
 import CommandPalette from '../components/CommandPalette.astro';
+import AuthModal from '../components/AuthModal.astro';
 
 interface Props {
   title: string;
@@ -94,6 +95,7 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
 
     <StudyAssistant />
     <CommandPalette />
+    <AuthModal />
 
     <script>
       const toggle = document.getElementById('mobile-nav-toggle');

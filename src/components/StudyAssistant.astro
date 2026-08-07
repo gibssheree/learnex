@@ -67,6 +67,11 @@ import PixelIcon from './ornaments/PixelIcon.astro';
       </p>
     </div>
 
+    <div id="assistant-login-gate" class="assistant-login-gate" hidden>
+      <p>Log in to use the Study Assistant.</p>
+      <button id="assistant-login-gate-btn" class="assistant-login-gate-btn" type="button">Log in</button>
+    </div>
+
     <form id="assistant-form" class="assistant-form">
       <button
         id="assistant-mic-btn"
@@ -98,8 +103,15 @@ import PixelIcon from './ornaments/PixelIcon.astro';
 <script>
   import { isPersona, PERSONA_INSTRUCTIONS, DIAGRAM_INSTRUCTION, type Persona } from '../lib/ai-personas';
   import { renderDiagramSvg } from '../lib/diagram';
+  import { getCurrentUserId } from '../lib/auth-client';
+  import { supabase } from '../lib/supabase-client';
 
-  interface ChatMessage { role: 'user' | 'model'; text: string; }
+  // `local: true` marks a message exchanged while the local-Ollama (BYOC)
+  // path was active — see getAssistantReply()'s filter below, which keeps
+  // those turns out of what's sent to /api/assistant so a switch back to
+  // hosted mode mid-conversation can't leak a local-only exchange into the
+  // synced, server-persisted chat history.
+  interface ChatMessage { role: 'user' | 'model'; text: string; local?: boolean; }
 
   const toggleBtn    = document.getElementById('assistant-toggle-btn') as HTMLButtonElement | null;
   const closeBtn     = document.getElementById('assistant-close-btn');
@@ -111,6 +123,8 @@ import PixelIcon from './ornaments/PixelIcon.astro';
   const sendBtn      = document.getElementById('assistant-send-btn') as HTMLButtonElement | null;
   const micBtn       = document.getElementById('assistant-mic-btn') as HTMLButtonElement | null;
   const speakIconTpl = document.getElementById('assistant-speak-icon-tpl') as HTMLTemplateElement | null;
+  const loginGate    = document.getElementById('assistant-login-gate') as HTMLElement | null;
+  const loginGateBtn = document.getElementById('assistant-login-gate-btn');
   // Trigger button + its state icons now live in Header.astro's toolbar;
   // toggleBtn (above) IS what used to be the separate fabWrap element —
   // data-ai-state lives directly on the button now, no wrapper needed.
@@ -185,12 +199,63 @@ import PixelIcon from './ornaments/PixelIcon.astro';
     localSettings.enabled = localToggle.checked;
     if (localFields) localFields.hidden = !localSettings.enabled;
     saveLocalSettings();
+    syncLoginGate();
   });
 
   localModelInput?.addEventListener('change', () => {
     localSettings.model = localModelInput.value.trim() || 'llama3.2';
     saveLocalSettings();
   });
+
+  // ── Login gate ────────────────────────────────────────────────────────────
+  // Hosted mode (Gemini via /api/assistant) requires login; local-Ollama mode
+  // never touches the server and stays usable while logged out.
+
+  function requiresLogin(): boolean {
+    return !localSettings.enabled && !getCurrentUserId();
+  }
+
+  function syncLoginGate() {
+    const gated = requiresLogin();
+    if (loginGate) loginGate.hidden = !gated;
+    if (form) form.hidden = gated;
+  }
+
+  loginGateBtn?.addEventListener('click', () => {
+    document.getElementById('auth-toggle-btn')?.click();
+  });
+
+  // ── Persisted history — loaded once per page load, first time a
+  // learnitas:auth-changed event carries a signed-in user and nothing has
+  // been typed yet (guards against clobbering an in-progress local-mode
+  // conversation that started before the session check resolved). ────────
+
+  let historyLoaded = false;
+
+  async function maybeLoadHistory(userId: string | null) {
+    if (historyLoaded || !userId || history.length > 0) return;
+    historyLoaded = true;
+    const { data, error } = await supabase
+      .from('assistant_threads')
+      .select('messages')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data?.messages) return;
+    const saved = data.messages as ChatMessage[];
+    for (const m of saved) {
+      if (!m || (m.role !== 'user' && m.role !== 'model') || typeof m.text !== 'string') continue;
+      history.push(m);
+      appendMessage(m.role, m.text);
+    }
+  }
+
+  document.addEventListener('learnitas:auth-changed', (e) => {
+    syncLoginGate();
+    const detail = (e as CustomEvent).detail as { userId: string | null } | undefined;
+    if (detail?.userId) maybeLoadHistory(detail.userId);
+  });
+
+  syncLoginGate();
 
   // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -622,10 +687,16 @@ import PixelIcon from './ornaments/PixelIcon.astro';
 
   async function getAssistantReply(): Promise<string> {
     if (localSettings.enabled) return askLocalModel(history, currentPage());
+    // Local-mode turns never leave the browser and must not leak into the
+    // synced, server-persisted thread — see the `local` field on ChatMessage.
     const res = await fetch('/api/assistant', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: history, currentPage: currentPage(), persona }),
+      body: JSON.stringify({
+        messages: history.filter((m) => !m.local).map(({ role, text }) => ({ role, text })),
+        currentPage: currentPage(),
+        persona,
+      }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? 'Something went wrong.');
@@ -640,7 +711,7 @@ import PixelIcon from './ornaments/PixelIcon.astro';
     if (!text || !input || !sendBtn) return;
 
     appendMessage('user', text);
-    history.push({ role: 'user', text });
+    history.push({ role: 'user', text, local: localSettings.enabled });
     input.value = '';
     input.style.height = 'auto';
     sendBtn.disabled = true;
@@ -654,7 +725,7 @@ import PixelIcon from './ornaments/PixelIcon.astro';
       if (pendingText) pendingText.innerHTML = renderMarkdown(answer);
       pending?.classList.remove('assistant-msg--pending');
 
-      history.push({ role: 'model', text: answer });
+      history.push({ role: 'model', text: answer, local: localSettings.enabled });
       addSpeakButton(pending, answer);
       if (aiModeActive) {
         setOrbState('speaking');
@@ -1019,6 +1090,34 @@ import PixelIcon from './ornaments/PixelIcon.astro';
   .assistant-msg-speak:hover   { opacity: 1; }
   .assistant-msg-speak:disabled { opacity: 0.3; cursor: wait; }
 
+  .assistant-login-gate {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-elevated);
+    text-align: center;
+  }
+  .assistant-login-gate[hidden] { display: none; }
+  .assistant-login-gate p {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--ink-muted);
+  }
+  .assistant-login-gate-btn {
+    padding: 0.45rem 1rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 5px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .assistant-login-gate-btn:hover { background: var(--accent-strong); }
+
   .assistant-form {
     display: flex;
     align-items: flex-end;
@@ -1027,6 +1126,7 @@ import PixelIcon from './ornaments/PixelIcon.astro';
     border-top: 1px solid var(--border);
     background: var(--bg-elevated);
   }
+  .assistant-form[hidden] { display: none; }
   .assistant-input {
     flex: 1;
     resize: none;
