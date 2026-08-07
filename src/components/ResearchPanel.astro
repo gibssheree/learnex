@@ -1,0 +1,607 @@
+---
+import PixelIcon from './ornaments/PixelIcon.astro';
+---
+
+<div class="research-panel-shell" data-pagefind-ignore>
+  <header class="research-panel-header">
+    <p class="font-pixel research-panel-title" id="research-panel-context">Research</p>
+    <button id="research-panel-close-btn" class="research-panel-close" type="button" aria-label="Close research panel">×</button>
+  </header>
+
+  <div class="research-panel-tabs" role="tablist">
+    <button type="button" class="research-panel-tab" data-tab="references" role="tab" aria-selected="true">References</button>
+    <button type="button" class="research-panel-tab" data-tab="ask-ai" role="tab" aria-selected="false">Ask AI</button>
+    <button type="button" class="research-panel-tab" data-tab="browser" role="tab" aria-selected="false">Browser</button>
+  </div>
+
+  <div id="research-pane-references" class="research-panel-pane">
+    <p class="research-empty">Open a note and click <PixelIcon name="globe" size={11} /> "Search the web" to gather sources here.</p>
+  </div>
+
+  <div id="research-pane-ask-ai" class="research-panel-pane" hidden>
+    <p class="research-empty">Open a note and click an AI button to consult it about that topic.</p>
+  </div>
+
+  <div id="research-pane-browser" class="research-panel-pane research-panel-pane--browser" hidden>
+    <form id="browser-form" class="research-browser-form">
+      <input id="browser-input" class="research-browser-input" type="text" placeholder="Enter a URL or search…" autocomplete="off" />
+    </form>
+    <a id="browser-open-new-tab" class="research-browser-escape" target="_blank" rel="noopener noreferrer" hidden>Open in new tab ↗</a>
+    <p id="browser-blocked-note" class="research-browser-note" hidden></p>
+    <iframe id="browser-frame" class="research-browser-frame" title="Embedded page" hidden
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+      referrerpolicy="no-referrer"></iframe>
+  </div>
+</div>
+
+<script>
+  interface Source { title: string; url: string; summary: string }
+  interface ReferencesResult {
+    answer: string;
+    sources: Source[];
+    searchQueries: string[];
+    searchSuggestionsHtml: string | null;
+  }
+  interface OpenDetail {
+    tab: 'references' | 'ask-ai' | 'browser';
+    route: string;
+    title: string;
+    summary?: string;
+  }
+
+  const contextEl = document.getElementById('research-panel-context');
+  const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.research-panel-tab'));
+  const panes: Record<OpenDetail['tab'], HTMLElement | null> = {
+    references: document.getElementById('research-pane-references'),
+    'ask-ai': document.getElementById('research-pane-ask-ai'),
+    browser: document.getElementById('research-pane-browser'),
+  };
+
+  const TAB_KEY = 'learnitas-research-panel-tab';
+
+  function isTab(v: unknown): v is OpenDetail['tab'] {
+    return v === 'references' || v === 'ask-ai' || v === 'browser';
+  }
+
+  function setActiveTab(tab: OpenDetail['tab']) {
+    tabs.forEach((btn) => btn.setAttribute('aria-selected', String(btn.dataset.tab === tab)));
+    (Object.keys(panes) as OpenDetail['tab'][]).forEach((key) => {
+      const el = panes[key];
+      if (el) el.hidden = key !== tab;
+    });
+    localStorage.setItem(TAB_KEY, tab);
+  }
+
+  tabs.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      if (isTab(tab)) setActiveTab(tab);
+    });
+  });
+
+  const savedTab = localStorage.getItem(TAB_KEY);
+  setActiveTab(isTab(savedTab) ? savedTab : 'references');
+
+  // closeBtn's click listener is attached by BaseLayout.astro's script,
+  // which already owns openResearchPanel()/closeResearchPanel() and the
+  // aside/backdrop it toggles — single source of truth for that logic,
+  // same "id lives here, behavior lives there" convention used for e.g.
+  // #assistant-toggle-btn (defined in Header.astro, wired in
+  // StudyAssistant.astro).
+
+  // ── Shared fetch/cache ──────────────────────────────────────────────────
+  // One slot, not a Map: there's no client-side router in this codebase, so
+  // every page load is a fresh module evaluation — a single "last route"
+  // cache is correct and simplest. Shared between the References pane and
+  // the Ask AI pane's Gemini card so asking Gemini after already searching
+  // the web reuses the same call instead of billing Gemini twice.
+
+  let cache: { route: string; result: ReferencesResult } | null = null;
+  let inFlight: Promise<ReferencesResult> | null = null;
+  let inFlightRoute: string | null = null;
+
+  async function ensureResult(detail: { route: string; title: string; summary?: string }): Promise<ReferencesResult> {
+    if (cache && cache.route === detail.route) return cache.result;
+    if (inFlight && inFlightRoute === detail.route) return inFlight;
+    inFlightRoute = detail.route;
+    inFlight = fetch('/api/references', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: detail.title, summary: detail.summary }),
+    })
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error ?? 'Something went wrong.');
+        return data as ReferencesResult;
+      })
+      .then((result) => {
+        cache = { route: detail.route, result };
+        return result;
+      })
+      .finally(() => {
+        inFlight = null;
+        inFlightRoute = null;
+      });
+    return inFlight;
+  }
+
+  // ── Markdown helpers ────────────────────────────────────────────────────
+
+  function sourceMarkdown(s: Source): string {
+    return s.summary ? `> ${s.summary}\n— [${s.title}](${s.url})` : `— [${s.title}](${s.url})`;
+  }
+
+  async function copyMarkdown(text: string, btn: HTMLButtonElement) {
+    const original = btn.textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.textContent = 'Copied!';
+    } catch {
+      btn.textContent = 'Copy failed';
+    }
+    btn.disabled = true;
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.disabled = false;
+    }, 1500);
+  }
+
+  // ── HTML rendering ──────────────────────────────────────────────────────
+
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  function hostnameOf(url: string): string {
+    try {
+      return new URL(url).hostname.replace(/^www\./, '');
+    } catch {
+      return url;
+    }
+  }
+
+  function renderReferences(container: HTMLElement, title: string, result: ReferencesResult) {
+    container.innerHTML = '';
+
+    if (result.sources.length === 0) {
+      const p = document.createElement('p');
+      p.className = 'research-empty';
+      p.textContent = result.answer || 'No sources could be attributed for this search.';
+      container.appendChild(p);
+      return;
+    }
+
+    const list = document.createElement('div');
+    list.className = 'research-source-list';
+    for (const source of result.sources) {
+      const card = document.createElement('article');
+      card.className = 'research-source-card';
+      card.innerHTML = `
+        <a class="research-source-title" href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title)}</a>
+        <span class="research-source-host">${esc(hostnameOf(source.url))}</span>
+        <p class="research-source-summary">${esc(source.summary || 'No summary available for this source.')}</p>
+        <button type="button" class="research-copy-btn" data-copy="source">Copy as Markdown</button>
+      `;
+      card.querySelector<HTMLButtonElement>('[data-copy="source"]')?.addEventListener('click', (e) => {
+        copyMarkdown(sourceMarkdown(source), e.currentTarget as HTMLButtonElement);
+      });
+      list.appendChild(card);
+    }
+    container.appendChild(list);
+
+    if (result.searchSuggestionsHtml) {
+      const widget = document.createElement('div');
+      widget.className = 'research-search-widget';
+      // Google's own required "Search Suggestions" widget, injected verbatim
+      // per their grounding terms of service — not sanitized/rewritten.
+      widget.innerHTML = result.searchSuggestionsHtml;
+      container.appendChild(widget);
+    }
+
+    const copyAllBtn = document.createElement('button');
+    copyAllBtn.type = 'button';
+    copyAllBtn.className = 'research-copy-btn research-copy-all-btn';
+    copyAllBtn.textContent = 'Copy all as Markdown';
+    copyAllBtn.addEventListener('click', () => {
+      const md = `## Sources: ${title}\n\n${result.sources.map(sourceMarkdown).join('\n\n')}`;
+      copyMarkdown(md, copyAllBtn);
+    });
+    container.appendChild(copyAllBtn);
+  }
+
+  function renderAskAi(container: HTMLElement, title: string, result: ReferencesResult) {
+    container.innerHTML = '';
+
+    const geminiCard = document.createElement('article');
+    geminiCard.className = 'research-provider-card';
+    const answerHtml = esc(result.answer || 'No answer came back.').replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>');
+    const citations = result.sources
+      .slice(0, 6)
+      .map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a></li>`)
+      .join('');
+    geminiCard.innerHTML = `
+      <p class="research-provider-name">Gemini <span class="research-provider-tag">live, web search</span></p>
+      <div class="research-provider-answer"><p>${answerHtml}</p></div>
+      ${citations ? `<ul class="research-provider-citations">${citations}</ul>` : ''}
+      <button type="button" class="research-copy-btn" data-copy="gemini">Copy as Markdown</button>
+    `;
+    geminiCard.querySelector<HTMLButtonElement>('[data-copy="gemini"]')?.addEventListener('click', (e) => {
+      const sourceLines = result.sources.map((s) => `- [${s.title}](${s.url})`).join('\n');
+      const md = `**${title}** — via Gemini (web search)\n\n${result.answer}${sourceLines ? `\n\nSources:\n${sourceLines}` : ''}`;
+      copyMarkdown(md, e.currentTarget as HTMLButtonElement);
+    });
+    container.appendChild(geminiCard);
+
+    const compareLabel = document.createElement('p');
+    compareLabel.className = 'research-compare-label';
+    compareLabel.textContent = 'Compare with';
+    container.appendChild(compareLabel);
+
+    const providerQuery = `Explain: ${title}`;
+    const row = document.createElement('div');
+    row.className = 'research-provider-row';
+    row.innerHTML = `
+      <button type="button" class="research-provider-btn" id="research-ask-claude-btn">Claude</button>
+      <a class="research-provider-btn" href="https://chatgpt.com/?q=${encodeURIComponent(providerQuery)}" target="_blank" rel="noopener noreferrer">ChatGPT</a>
+      <a class="research-provider-btn" href="https://www.perplexity.ai/search?q=${encodeURIComponent(providerQuery)}" target="_blank" rel="noopener noreferrer">Perplexity</a>
+    `;
+    container.appendChild(row);
+
+    // Claude removed its query-prefill URL in Oct 2025 — no public deep-link
+    // exists anymore, so the closest honest equivalent is: copy the question,
+    // then open a blank new chat one paste away from working.
+    row.querySelector('#research-ask-claude-btn')?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(providerQuery);
+      } catch {
+        /* clipboard is a bonus, not blocking */
+      }
+      window.open('https://claude.ai/new', '_blank', 'noopener');
+    });
+  }
+
+  async function ensureAndRenderReferences(detail: { route: string; title: string; summary?: string }) {
+    const pane = panes.references;
+    if (!pane) return;
+    pane.innerHTML = '<p class="research-loading">Searching the web…</p>';
+    try {
+      const result = await ensureResult(detail);
+      renderReferences(pane, detail.title, result);
+    } catch (err) {
+      pane.innerHTML = `<p class="research-empty research-error">${esc(err instanceof Error ? err.message : 'Something went wrong.')}</p>`;
+    }
+  }
+
+  async function ensureAndRenderAskAi(detail: { route: string; title: string; summary?: string }) {
+    const pane = panes['ask-ai'];
+    if (!pane) return;
+    pane.innerHTML = '<p class="research-loading">Asking Gemini…</p>';
+    try {
+      const result = await ensureResult(detail);
+      renderAskAi(pane, detail.title, result);
+    } catch (err) {
+      pane.innerHTML = `<p class="research-empty research-error">${esc(err instanceof Error ? err.message : 'Something went wrong.')}</p>`;
+    }
+  }
+
+  document.addEventListener('learnitas:research-panel-open', ((e: Event) => {
+    const detail = (e as CustomEvent<OpenDetail>).detail;
+    if (!detail || !isTab(detail.tab)) return;
+    setActiveTab(detail.tab);
+    if (contextEl) contextEl.textContent = detail.title || 'Research';
+    if (detail.tab === 'references') ensureAndRenderReferences(detail);
+    else if (detail.tab === 'ask-ai') ensureAndRenderAskAi(detail);
+  }) as EventListener);
+
+  // ── Browser pane ────────────────────────────────────────────────────────
+
+  const browserForm = document.getElementById('browser-form') as HTMLFormElement | null;
+  const browserInput = document.getElementById('browser-input') as HTMLInputElement | null;
+  const browserFrame = document.getElementById('browser-frame') as HTMLIFrameElement | null;
+  const browserOpenNewTab = document.getElementById('browser-open-new-tab') as HTMLAnchorElement | null;
+  const browserBlockedNote = document.getElementById('browser-blocked-note');
+
+  const BLOCKED_PREFIXES = ['google.com/search', 'chatgpt.com', 'chat.openai.com', 'claude.ai', 'perplexity.ai'];
+
+  function isUrlShaped(input: string): boolean {
+    const t = input.trim();
+    if (/^https?:\/\//i.test(t)) return true;
+    return !t.includes(' ') && /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/.*)?$/i.test(t);
+  }
+
+  function normalizeUrl(input: string): string {
+    return /^https?:\/\//i.test(input) ? input : `https://${input}`;
+  }
+
+  function isBlocked(url: string): boolean {
+    try {
+      const u = new URL(url);
+      const host = u.hostname.replace(/^www\./, '');
+      return BLOCKED_PREFIXES.some((b) => `${host}${u.pathname}`.startsWith(b) || host === b);
+    } catch {
+      return false;
+    }
+  }
+
+  browserForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const raw = browserInput?.value.trim();
+    if (!raw) return;
+
+    if (!isUrlShaped(raw)) {
+      // A bare search phrase can't reach a Google results page in an iframe
+      // (Google blocks framing its SERP) — route through the same grounded
+      // search the References tab already uses instead of a doomed attempt.
+      setActiveTab('references');
+      ensureAndRenderReferences({ route: `browser-search:${raw}`, title: raw });
+      return;
+    }
+
+    const url = normalizeUrl(raw);
+    if (browserOpenNewTab) {
+      browserOpenNewTab.href = url;
+      browserOpenNewTab.hidden = false;
+    }
+
+    if (isBlocked(url)) {
+      if (browserFrame) browserFrame.hidden = true;
+      if (browserBlockedNote) {
+        browserBlockedNote.hidden = false;
+        browserBlockedNote.textContent = "This site won't allow embedding — opened in a new tab instead.";
+      }
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+
+    if (browserBlockedNote) browserBlockedNote.hidden = true;
+    if (browserFrame) {
+      browserFrame.hidden = false;
+      browserFrame.src = url;
+    }
+  });
+</script>
+
+<style>
+  .research-panel-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .research-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-inset);
+    flex-shrink: 0;
+  }
+  .research-panel-title {
+    font-size: 0.65rem;
+    color: var(--brass);
+    letter-spacing: 0.05em;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .research-panel-close {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .research-panel-close:hover { color: var(--accent); background: var(--bg-elevated); }
+
+  .research-panel-tabs {
+    display: flex;
+    gap: 0.3rem;
+    padding: 0.6rem 0.75rem 0;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .research-panel-tab {
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    background: transparent;
+    color: var(--ink-muted);
+    font-family: var(--font-display);
+    font-size: 0.74rem;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transform: translateY(1px);
+  }
+  .research-panel-tab[aria-selected='true'] {
+    background: var(--bg-elevated);
+    color: var(--accent);
+    border-color: var(--border);
+  }
+
+  .research-panel-pane {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1.1rem 1rem;
+  }
+  .research-panel-pane[hidden] { display: none; }
+
+  .research-empty, .research-loading {
+    color: var(--ink-faint);
+    font-size: 0.85rem;
+    text-align: center;
+    margin: 1.5rem auto;
+    max-width: 20rem;
+  }
+  .research-error { color: var(--accent); }
+
+  .research-source-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+  .research-source-card {
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+  }
+  .research-source-title {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 0.92rem;
+    color: var(--ink);
+    text-decoration: none;
+    margin-bottom: 0.15rem;
+  }
+  .research-source-title:hover { color: var(--accent); }
+  .research-source-host {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--brass);
+    margin-bottom: 0.45rem;
+  }
+  .research-source-summary {
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+    margin: 0 0 0.6rem;
+    line-height: 1.5;
+  }
+
+  .research-copy-btn {
+    padding: 0.3rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink-faint);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    cursor: pointer;
+  }
+  .research-copy-btn:hover { border-color: var(--brass); color: var(--brass); }
+  .research-copy-btn:disabled { opacity: 0.6; cursor: default; }
+  .research-copy-all-btn {
+    display: block;
+    margin: 1rem auto 0;
+  }
+
+  .research-search-widget {
+    margin-top: 1rem;
+    font-size: 0.78rem;
+  }
+
+  .research-provider-card {
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    margin-bottom: 1rem;
+  }
+  .research-provider-name {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    color: var(--ink);
+    margin: 0 0 0.5rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .research-provider-tag {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--brass-soft);
+  }
+  .research-provider-answer {
+    font-size: 0.87rem;
+    color: var(--ink-muted);
+    line-height: 1.6;
+    margin-bottom: 0.7rem;
+  }
+  .research-provider-answer p:first-child { margin-top: 0; }
+  .research-provider-citations {
+    list-style: none;
+    margin: 0 0 0.75rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+  }
+  .research-provider-citations a { color: var(--ink-faint); }
+  .research-provider-citations a:hover { color: var(--accent); }
+
+  .research-compare-label {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 0.6rem;
+  }
+  .research-provider-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .research-provider-btn {
+    padding: 0.5rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ink-muted);
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .research-provider-btn:hover { border-color: var(--brass); color: var(--brass); }
+
+  .research-panel-pane--browser {
+    display: flex;
+    flex-direction: column;
+    padding: 0.85rem;
+    gap: 0.5rem;
+  }
+  .research-browser-form { flex-shrink: 0; }
+  .research-browser-input {
+    width: 100%;
+    padding: 0.5rem 0.7rem;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+  }
+  .research-browser-input:focus { outline: 2px solid var(--brass-bright); outline-offset: 1px; }
+  .research-browser-escape {
+    flex-shrink: 0;
+    align-self: flex-start;
+    font-size: 0.78rem;
+    color: var(--brass);
+  }
+  .research-browser-note {
+    flex-shrink: 0;
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    margin: 0;
+  }
+  .research-browser-frame {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--bg-elevated);
+  }
+  .research-browser-frame[hidden] { display: none; }
+</style>

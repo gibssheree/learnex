@@ -37,9 +37,10 @@ interface Props {
   prev?: SiblingLink;
   next?: SiblingLink;
   backlinks?: Backlink[];
+  summary?: string;
 }
 
-const { title, crumbs, headings, status, prev, next, backlinks } = Astro.props;
+const { title, crumbs, headings, status, prev, next, backlinks, summary } = Astro.props;
 
 const issueParams = new URLSearchParams({
   title: 'Content issue: ' + title,
@@ -47,6 +48,13 @@ const issueParams = new URLSearchParams({
   body: 'Note: ' + Astro.url.pathname + "\n\nWhat's wrong:\n",
 });
 const issueUrl = 'https://github.com/gibssheree/learnitas/issues/new?' + issueParams.toString();
+
+// Deep-links for the "Dig deeper" row below — see ResearchPanel.astro for
+// why Gemini gets a real in-panel answer while these three are plain
+// external links (no paid API integration for them, by design).
+const providerQuery = `Explain: ${title}`;
+const chatgptUrl = `https://chatgpt.com/?q=${encodeURIComponent(providerQuery)}`;
+const perplexityUrl = `https://www.perplexity.ai/search?q=${encodeURIComponent(providerQuery)}`;
 ---
 
 <BaseLayout title={title}>
@@ -111,6 +119,58 @@ const issueUrl = 'https://github.com/gibssheree/learnitas/issues/new?' + issuePa
             </div>
           )}
 
+          <div
+            class="reference-tools-section"
+            data-pagefind-ignore
+            data-title={title}
+            data-summary={summary}
+          >
+            <p class="reference-tools-title font-pixel">Dig deeper</p>
+            <div class="reference-tools-row">
+              <button
+                id="references-search-btn"
+                class="reference-tool-btn"
+                type="button"
+                aria-label="Search the web for sources about this note"
+                data-tooltip="Search the web for sources"
+              >
+                <PixelIcon name="globe" size={16} />
+              </button>
+              <button
+                id="ask-gemini-btn"
+                class="reference-tool-btn"
+                type="button"
+                aria-label="Ask Gemini about this topic (live web search)"
+                data-tooltip="Ask Gemini"
+              >Ge</button>
+              <button
+                id="ask-claude-btn"
+                class="reference-tool-btn"
+                type="button"
+                aria-label="Ask Claude about this topic — copies the question, opens claude.ai in a new tab"
+                data-tooltip="Ask Claude"
+              >Cl</button>
+              <a
+                id="ask-chatgpt-link"
+                class="reference-tool-btn"
+                href={chatgptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Ask ChatGPT about this topic, opens in a new tab"
+                data-tooltip="Ask ChatGPT"
+              >Ch</a>
+              <a
+                id="ask-perplexity-link"
+                class="reference-tool-btn"
+                href={perplexityUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Ask Perplexity about this topic, opens in a new tab"
+                data-tooltip="Ask Perplexity"
+              >Px</a>
+            </div>
+          </div>
+
           <p class="feedback-link" data-pagefind-ignore>
             <a href={issueUrl} target="_blank" rel="noopener noreferrer">Spot an error in this note?</a>
           </p>
@@ -166,6 +226,31 @@ const issueUrl = 'https://github.com/gibssheree/learnitas/issues/new?' + issuePa
   }
 
   document.getElementById('print-note-btn')?.addEventListener('click', () => window.print());
+
+  // ---------- Dig deeper (research panel triggers) ----------
+  const toolsSection = document.querySelector<HTMLElement>('.reference-tools-section');
+  const noteRoute = location.pathname;
+  const noteTitle = toolsSection?.dataset.title ?? '';
+  const noteSummary = toolsSection?.dataset.summary || undefined;
+
+  function openResearch(tab: 'references' | 'ask-ai') {
+    document.dispatchEvent(
+      new CustomEvent('learnitas:research-panel-open', {
+        detail: { tab, route: noteRoute, title: noteTitle, summary: noteSummary },
+      }),
+    );
+  }
+
+  document.getElementById('references-search-btn')?.addEventListener('click', () => openResearch('references'));
+  document.getElementById('ask-gemini-btn')?.addEventListener('click', () => openResearch('ask-ai'));
+  document.getElementById('ask-claude-btn')?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(`Explain: ${noteTitle}`);
+    } catch {
+      /* clipboard is a bonus, not blocking */
+    }
+    window.open('https://claude.ai/new', '_blank', 'noopener');
+  });
 </script>
 
 <style>
@@ -249,6 +334,42 @@ const issueUrl = 'https://github.com/gibssheree/learnitas/issues/new?' + issuePa
   .backlinks-list a:hover {
     color: var(--accent);
     border-color: var(--brass);
+  }
+
+  .reference-tools-section {
+    max-width: 40rem;
+    margin: 1.5rem auto 0;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+  .reference-tools-title {
+    font-size: 0.6rem;
+    color: var(--brass);
+    letter-spacing: 0.05em;
+    margin: 0 0 0.75rem;
+  }
+  .reference-tools-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .reference-tool-btn {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--ink-faint);
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .reference-tool-btn:hover {
+    border-color: var(--brass);
+    color: var(--brass);
   }
 
   .feedback-link {

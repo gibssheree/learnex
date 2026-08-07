@@ -7,6 +7,7 @@ import PixelIcon from '../components/ornaments/PixelIcon.astro';
 import StudyAssistant from '../components/StudyAssistant.astro';
 import CommandPalette from '../components/CommandPalette.astro';
 import AuthModal from '../components/AuthModal.astro';
+import ResearchPanel from '../components/ResearchPanel.astro';
 
 interface Props {
   title: string;
@@ -51,6 +52,9 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
           if (localStorage.getItem('learnitas-ipad-mode') === 'on') {
             document.documentElement.setAttribute('data-ipad-mode', 'on');
           }
+          if (localStorage.getItem('learnitas-research-panel') === 'open') {
+            document.documentElement.setAttribute('data-research-panel', 'open');
+          }
         } catch (e) {}
       })();
     </script>
@@ -91,6 +95,11 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
       <main class="main-content" data-pagefind-body>
         <slot />
       </main>
+
+      <aside id="research-panel-aside" class="research-panel-aside">
+        <ResearchPanel />
+      </aside>
+      <div id="research-panel-backdrop" class="research-panel-backdrop"></div>
     </div>
 
     <StudyAssistant />
@@ -169,6 +178,46 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
       navbarHideBtn?.addEventListener('click', () => setNavbarHidden(true));
       navbarShowBtn?.addEventListener('click', () => setNavbarHidden(false));
       navbarShowBtn?.setAttribute('aria-expanded', String(root.getAttribute('data-navbar') === 'hidden'));
+
+      // ---------- Research panel (right sidebar) ----------
+      // Mirrors the left sidebar's collapse mechanism above, but mirrored:
+      // closed/zero-width by default everywhere, opened only when a note
+      // page's "Dig deeper" row (ReaderLayout.astro) dispatches the open
+      // event below — see ResearchPanel.astro for the panel's own content.
+      const RESEARCH_KEY = 'learnitas-research-panel';
+      const researchAside = document.getElementById('research-panel-aside');
+      const researchBackdrop = document.getElementById('research-panel-backdrop');
+      const researchCloseBtn = document.getElementById('research-panel-close-btn');
+
+      function openResearchPanel() {
+        root.setAttribute('data-research-panel', 'open');
+        localStorage.setItem(RESEARCH_KEY, 'open');
+        researchAside?.classList.add('open');
+        researchBackdrop?.classList.add('open');
+        // Mutual exclusion with the left mobile drawer — both open at once
+        // would visually overlap at narrow widths.
+        close();
+        // On a mid-size laptop (roughly 881-1300px), left sidebar + article
+        // + right panel all at once crushes the article unreadably — reuse
+        // the existing left-sidebar collapse rather than inventing a new
+        // mechanism for this one case.
+        if (window.innerWidth <= 1300 && root.getAttribute('data-sidebar') !== 'collapsed') {
+          collapseBtn?.click();
+        }
+      }
+      function closeResearchPanel() {
+        root.removeAttribute('data-research-panel');
+        localStorage.removeItem(RESEARCH_KEY);
+        researchAside?.classList.remove('open');
+        researchBackdrop?.classList.remove('open');
+      }
+
+      researchCloseBtn?.addEventListener('click', closeResearchPanel);
+      researchBackdrop?.addEventListener('click', closeResearchPanel);
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && root.getAttribute('data-research-panel') === 'open') closeResearchPanel();
+      });
+      document.addEventListener('learnitas:research-panel-open', () => openResearchPanel());
     </script>
   </body>
 </html>
@@ -183,7 +232,7 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
 
   .shell {
     display: grid;
-    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-columns: 280px minmax(0, 1fr) 0px;
     align-items: start;
     transition: grid-template-columns 0.2s ease;
   }
@@ -319,10 +368,12 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
 
   /* Desktop-only collapse — scoped above the mobile breakpoint so a collapsed
      state saved from a desktop session never hides the mobile off-canvas
-     drawer (which uses its own transform-based open/close). */
+     drawer (which uses its own transform-based open/close). Only 4
+     combinations exist (left collapsed x right open), so they're enumerated
+     directly rather than composed via CSS custom properties. */
   @media (min-width: 881px) {
     :root[data-sidebar='collapsed'] .shell {
-      grid-template-columns: 0px minmax(0, 1fr);
+      grid-template-columns: 0px minmax(0, 1fr) 0px;
     }
     :root[data-sidebar='collapsed'] .sidebar-aside {
       padding: 0;
@@ -330,6 +381,39 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
+    }
+    :root[data-research-panel='open'] .shell {
+      grid-template-columns: 280px minmax(0, 1fr) clamp(18rem, 34vw, 24rem);
+    }
+    :root[data-sidebar='collapsed'][data-research-panel='open'] .shell {
+      grid-template-columns: 0px minmax(0, 1fr) clamp(18rem, 34vw, 24rem);
+    }
+  }
+
+  .research-panel-aside {
+    position: sticky;
+    top: var(--header-h);
+    height: calc(100vh - var(--header-h));
+    min-width: 0;
+    overflow: hidden;
+    background: var(--bg);
+    transition: opacity 0.15s ease, top 0.32s ease, height 0.32s ease;
+  }
+  .research-panel-backdrop {
+    display: none;
+  }
+
+  @media (min-width: 881px) {
+    .research-panel-aside {
+      border-left: 1px solid var(--border);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    :root[data-research-panel='open'] .research-panel-aside {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
     }
   }
 
@@ -398,6 +482,33 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
       transform: translateX(0);
     }
     .sidebar-backdrop.open {
+      display: block;
+      position: fixed;
+      inset: var(--header-h) 0 0 0;
+      background: hsl(var(--shadow-color) / 0.45);
+      z-index: 50;
+    }
+
+    .research-panel-aside {
+      position: fixed;
+      top: var(--header-h);
+      right: 0;
+      bottom: 0;
+      width: 24rem;
+      max-width: 88vw;
+      transform: translateX(100%);
+      transition: transform 0.2s ease;
+      z-index: 60;
+      box-shadow: -6px 0 24px hsl(var(--shadow-color) / 0.4);
+      border-left: 1px solid var(--border);
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+    .research-panel-aside.open {
+      transform: translateX(0);
+    }
+    .research-panel-backdrop.open {
       display: block;
       position: fixed;
       inset: var(--header-h) 0 0 0;

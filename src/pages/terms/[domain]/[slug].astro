@@ -52,6 +52,7 @@ const backlinks = await getBacklinksFor(ownRoute);
   prev={prev && { title: prev.data.title, href: `/terms/${prev.data.domainSlug}/${prev.data.slug}` }}
   next={next && { title: next.data.title, href: `/terms/${next.data.domainSlug}/${next.data.slug}` }}
   backlinks={backlinks}
+  summary={entry.data.summary}
 >
   <Content />
 </ReaderLayout>
