@@ -476,7 +476,7 @@ code, pre, kbd {
 
 /* ---------- iPad Mode ----------
    A manual, explicit opt-in (toggled in Header.astro, persisted via
-   localStorage as `learnex-ipad-mode`, restored pre-paint in
+   localStorage as `learnitas-ipad-mode`, restored pre-paint in
    BaseLayout.astro) rather than an automatic touch-device detection — see
    AnnotationCanvas.astro and the .annotate-* rules there for the drawing
    layer this unlocks. */

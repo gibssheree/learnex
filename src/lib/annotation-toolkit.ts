@@ -207,7 +207,7 @@ export function attachAnnotationToolkit(opts: AnnotationToolkitOptions): Annotat
   });
 
   // ---------- iPad mode reacting live (no reload needed) ----------
-  document.addEventListener('learnex:ipad-mode-changed', () => {
+  document.addEventListener('learnitas:ipad-mode-changed', () => {
     syncInteractivity();
     if (getActive()) resize();
   });

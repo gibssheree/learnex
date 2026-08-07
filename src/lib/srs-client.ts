@@ -11,7 +11,7 @@ export interface CardState {
 
 export type Grade = 'again' | 'hard' | 'good' | 'easy';
 
-const KEY = 'learnex-srs';
+const KEY = 'learnitas-srs';
 
 export function loadStates(): Record<string, CardState> {
   try {

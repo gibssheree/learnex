@@ -3,7 +3,7 @@
  * (used elsewhere for bookmarks/SRS/theme) is synchronous and capped at a
  * few MB, too small for freehand stroke data across hundreds of notes. */
 
-const DB_NAME = 'learnex-annotations';
+const DB_NAME = 'learnitas-annotations';
 const DB_VERSION = 1;
 const STORE_NAME = 'strokes';
 

@@ -1,8 +1,8 @@
-# Learnex — AI Study Assistant + iPad/Pencil Mode (Phase 1)
+# Learnitas — AI Study Assistant + iPad/Pencil Mode (Phase 1)
 
 ## Context
 
-Learnex is currently a 100% static Astro site (no adapter, no server, no env vars, no backend) that renders a personal knowledge vault (~50 language notes + ~400 term notes) with client-side-only interactivity (localStorage for theme/bookmarks/SRS state, a mouse-only canvas graph). The user wants to turn it into a genuinely AI-assisted, touch/Pencil-friendly study tool:
+Learnitas is currently a 100% static Astro site (no adapter, no server, no env vars, no backend) that renders a personal knowledge vault (~50 language notes + ~400 term notes) with client-side-only interactivity (localStorage for theme/bookmarks/SRS state, a mouse-only canvas graph). The user wants to turn it into a genuinely AI-assisted, touch/Pencil-friendly study tool:
 
 1. **An AI study assistant** — a chat/search feature backed by Google Gemini, with the API key held server-side (never exposed to the browser), that answers questions using the vault's own content via **retrieval** (RAG) rather than dumping the whole vault into every prompt — retrieval is exposed to the model as a **callable tool**, so Gemini decides when it needs to search rather than the app always stuffing context in.
 2. **An "iPad Mode"** — a navbar-toggled mode that unlocks a touch/stylus-optimized UI and a handwritten annotation layer (Apple Pencil / touch / mouse via the Pointer Events API) that lets the user draw directly on top of a note, persisted locally.
@@ -49,7 +49,7 @@ export default defineConfig({
 **2. Runtime retrieval + tool-calling** (`src/lib/rag.ts` + `src/pages/api/assistant.ts`):
 - `src/lib/rag.ts` loads `vault-embeddings.json` once per function instance (module-level cache) and exposes `searchVault(queryVector, topK)` — brute-force cosine similarity over ~1,500–2,500 chunk vectors, which is sub-100ms in plain JS at this scale, no vector DB needed.
 - `src/pages/api/assistant.ts` (`export const prerender = false;`) receives `{ messages, currentPage: { title, route } }` from the client, calls Gemini's chat API with:
-  - A system instruction describing Learnex and that it should use the `search_vault` function when it needs facts from the notes rather than guessing.
+  - A system instruction describing Learnitas and that it should use the `search_vault` function when it needs facts from the notes rather than guessing.
   - A **function declaration** `search_vault(query: string)` in the request.
   - The conversation history plus the user's new message.
 - When Gemini's response contains a function call, the route embeds `query` via the Gemini embedding API, calls `searchVault()`, sends the results back to Gemini as a function response, and lets Gemini produce the final answer (standard Gemini function-calling round trip — may loop more than once if the model chains searches).
@@ -70,7 +70,7 @@ export default defineConfig({
 ### Toggle (`Header.astro` + `BaseLayout.astro`)
 Follows the **exact existing pattern** used by the CRT/theme/text-size toggles — no new mechanism needed:
 - New `#ipad-mode-toggle-btn` button in `Header.astro`'s `.toolbar-group`, same shape as `#crt-toggle-btn`.
-- `BaseLayout.astro`'s existing inline `<script is:inline>` (the one that already restores `learnex-theme`/`learnex-crt`/`learnex-text-size`/`learnex-sidebar`/`learnex-navbar` from `localStorage` before paint) gets one more line restoring `learnex-ipad-mode` → `data-ipad-mode="on"` on `<html>`.
+- `BaseLayout.astro`'s existing inline `<script is:inline>` (the one that already restores `learnitas-theme`/`learnitas-crt`/`learnitas-text-size`/`learnitas-sidebar`/`learnitas-navbar` from `localStorage` before paint) gets one more line restoring `learnitas-ipad-mode` → `data-ipad-mode="on"` on `<html>`.
 - `Header.astro`'s existing toggle-handler script gets one more handler, identical shape to the CRT one.
 
 ### Touch/stylus CSS pass (`src/styles/global.css` + component styles)
@@ -121,7 +121,7 @@ No new dependency for IndexedDB or canvas — both handled with vanilla browser 
 | `astro.config.mjs` | add `@astrojs/vercel` adapter |
 | `package.json` | add 2 deps, add `build-embeddings` script |
 | `.gitignore` | ensure `.env` is ignored |
-| `src/layouts/BaseLayout.astro` | restore `learnex-ipad-mode` in the existing inline localStorage-restore script; mount `<StudyAssistant />` |
+| `src/layouts/BaseLayout.astro` | restore `learnitas-ipad-mode` in the existing inline localStorage-restore script; mount `<StudyAssistant />` |
 | `src/layouts/ReaderLayout.astro` | mount `<AnnotationCanvas />` on note pages |
 | `src/components/Header.astro` | add iPad Mode toggle button + handler (mirrors existing CRT toggle) |
 | `src/styles/global.css` | `@media (pointer: coarse)` touch-target rules; `[data-ipad-mode]` scoping; ensure annotation canvas is covered by the existing `@media print` chrome-stripping block |

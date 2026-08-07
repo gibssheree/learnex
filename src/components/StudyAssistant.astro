@@ -4,43 +4,15 @@ import PixelIcon from './ornaments/PixelIcon.astro';
 
 <div class="assistant-root" data-pagefind-ignore>
 
-  <!-- ─── Rolling caption strip — to the LEFT of the FAB, only in AI mode ─── -->
+  <!-- ─── Rolling caption strip — only in AI mode. The trigger button and its
+       icon-swap states now live in Header.astro's toolbar (see
+       #assistant-toggle-btn there); this component owns the panel/caption/
+       messages that button controls. ──────────────────────────────────── -->
   <div id="assistant-caption-bar" class="assistant-caption-bar" hidden aria-live="polite" aria-atomic="true">
     <span id="assistant-caption-text" class="assistant-caption-text"></span>
   </div>
 
-  <!-- ─── FAB wrapper — holds ripple rings + the button ──────────────────── -->
-  <div class="assistant-fab-wrap" id="assistant-fab-wrap">
-    <span class="assistant-fab-ring assistant-fab-ring--1" aria-hidden="true"></span>
-    <span class="assistant-fab-ring assistant-fab-ring--2" aria-hidden="true"></span>
-
-    <button
-      id="assistant-toggle-btn"
-      class="assistant-fab"
-      type="button"
-      aria-label="Open Study Assistant"
-      aria-expanded="false"
-      data-tooltip="Study Assistant"
-    >
-      <span class="assistant-fab-icon" id="fab-icon-chat">
-        <PixelIcon name="chat" size={20} />
-      </span>
-      <span class="assistant-fab-icon" id="fab-icon-mic" hidden>
-        <PixelIcon name="mic" size={20} />
-      </span>
-      <span class="assistant-fab-icon" id="fab-icon-speaker" hidden>
-        <PixelIcon name="speaker" size={20} />
-      </span>
-      <span class="assistant-fab-icon" id="fab-icon-spinner" hidden>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-          <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2.2"
-            stroke-linecap="round" stroke-dasharray="38" stroke-dashoffset="10"/>
-        </svg>
-      </span>
-    </button>
-  </div>
-
-  <!-- ─── Chat panel — collapsed by default, FAB toggles it ─────────────── -->
+  <!-- ─── Chat panel — collapsed by default, header button toggles it ───── -->
   <section id="assistant-panel" class="assistant-panel" hidden aria-label="Study Assistant">
     <header class="assistant-header">
       <div class="assistant-header-row">
@@ -82,7 +54,7 @@ import PixelIcon from './ornaments/PixelIcon.astro';
           />
           <p class="assistant-settings-hint">
             Butuh Ollama jalan di <code>localhost:11434</code>. Saat aktif, pertanyaan tidak lewat
-            server Learnex sama sekali dan pencarian vault (RAG) nonaktif. Kalau muncul error CORS,
+            server Learnitas sama sekali dan pencarian vault (RAG) nonaktif. Kalau muncul error CORS,
             jalankan Ollama dengan env <code>OLLAMA_ORIGINS=*</code>.
           </p>
         </div>
@@ -139,7 +111,9 @@ import PixelIcon from './ornaments/PixelIcon.astro';
   const sendBtn      = document.getElementById('assistant-send-btn') as HTMLButtonElement | null;
   const micBtn       = document.getElementById('assistant-mic-btn') as HTMLButtonElement | null;
   const speakIconTpl = document.getElementById('assistant-speak-icon-tpl') as HTMLTemplateElement | null;
-  const fabWrap      = document.getElementById('assistant-fab-wrap');
+  // Trigger button + its state icons now live in Header.astro's toolbar;
+  // toggleBtn (above) IS what used to be the separate fabWrap element —
+  // data-ai-state lives directly on the button now, no wrapper needed.
   const captionBar   = document.getElementById('assistant-caption-bar');
   const captionText  = document.getElementById('assistant-caption-text');
 
@@ -154,8 +128,8 @@ import PixelIcon from './ornaments/PixelIcon.astro';
 
   // ── Persona & local-model (BYOC) settings ─────────────────────────────────
 
-  const PERSONA_KEY = 'learnex-ai-persona';
-  const LOCAL_KEY = 'learnex-ai-local';
+  const PERSONA_KEY = 'learnitas-ai-persona';
+  const LOCAL_KEY = 'learnitas-ai-local';
 
   const storedPersona = localStorage.getItem(PERSONA_KEY);
   let persona: Persona = isPersona(storedPersona) ? storedPersona : 'direct';
@@ -222,7 +196,7 @@ import PixelIcon from './ornaments/PixelIcon.astro';
 
   function currentPage() {
     const h1 = document.querySelector('.reader-header h1, .page-leaf-inner h1');
-    const title = h1?.textContent?.trim() || document.title.replace(/\s*·\s*Learnex$/, '');
+    const title = h1?.textContent?.trim() || document.title.replace(/\s*·\s*Learnitas$/, '');
     return { title, route: location.pathname };
   }
 
@@ -238,10 +212,10 @@ import PixelIcon from './ornaments/PixelIcon.astro';
 
   const escAttr = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
-  /** Renders a ```learnex-diagram fenced block (JSON, see ai-personas.ts's
+  /** Renders a ```learnitas-diagram fenced block (JSON, see ai-personas.ts's
    * DIAGRAM_INSTRUCTION) as inline SVG via the shared layout in lib/diagram.ts,
    * plus a button that hands the same spec to Study Canvas as a non-destructive
-   * overlay — see the `learnex:assistant-diagram` listener in StudyCanvas.astro. */
+   * overlay — see the `learnitas:assistant-diagram` listener in StudyCanvas.astro. */
   function renderDiagramBlock(raw: string): string {
     try {
       const spec = JSON.parse(raw);
@@ -284,7 +258,7 @@ import PixelIcon from './ornaments/PixelIcon.astro';
     };
     const flushCode = () => {
       out.push(
-        codeLang === 'learnex-diagram'
+        codeLang === 'learnitas-diagram'
           ? renderDiagramBlock(codeBuf.join('\n'))
           : `<pre><code>${esc(codeBuf.join('\n'))}</code></pre>`,
       );
@@ -357,8 +331,8 @@ import PixelIcon from './ornaments/PixelIcon.astro';
 
   toggleBtn?.addEventListener('click', () => {
     if (aiModeActive) {
-      // In AI mode, FAB click = tap to talk
-      const state = fabWrap?.dataset.aiState;
+      // In AI mode, a tap = tap to talk
+      const state = toggleBtn?.dataset.aiState;
       if (state === 'listening') stopListening();
       else if (state === 'idle')  startListening();
     } else {
@@ -379,8 +353,8 @@ import PixelIcon from './ornaments/PixelIcon.astro';
   type AiState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
   function setOrbState(state: AiState) {
-    if (!fabWrap) return;
-    fabWrap.dataset.aiState = state;
+    if (!toggleBtn) return;
+    toggleBtn.dataset.aiState = state;
 
     if (state === 'listening')     showFabIcon('mic');
     else if (state === 'thinking') showFabIcon('spinner');
@@ -453,10 +427,10 @@ import PixelIcon from './ornaments/PixelIcon.astro';
   // ── Enter / exit AI mode ──────────────────────────────────────────────────
 
   function enterAiMode() {
-    if (!recognition || !fabWrap) return;
+    if (!recognition || !toggleBtn) return;
     aiModeActive = true;
 
-    // Collapse the chat panel — FAB is now the voice orb
+    // Collapse the chat panel — the toolbar button is now the voice orb
     setPanelOpen(false);
     toggleBtn?.removeAttribute('data-tooltip');
 
@@ -470,7 +444,7 @@ import PixelIcon from './ornaments/PixelIcon.astro';
     currentAudio?.pause();
     stopCaptionTimer();
 
-    delete fabWrap!.dataset.aiState;
+    delete toggleBtn!.dataset.aiState;
     showFabIcon('chat');
     hideCaption();
 
@@ -506,7 +480,7 @@ import PixelIcon from './ornaments/PixelIcon.astro';
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.assistant-diagram-open-btn');
     if (!btn?.dataset.diagram) return;
     try {
-      document.dispatchEvent(new CustomEvent('learnex:assistant-diagram', { detail: JSON.parse(btn.dataset.diagram) }));
+      document.dispatchEvent(new CustomEvent('learnitas:assistant-diagram', { detail: JSON.parse(btn.dataset.diagram) }));
     } catch { /* malformed spec — nothing to open */ }
   });
 
@@ -594,7 +568,7 @@ import PixelIcon from './ornaments/PixelIcon.astro';
 
     recognition.addEventListener('end', () => {
       listening = false;
-      if (aiModeActive && fabWrap?.dataset.aiState === 'listening') setOrbState('idle');
+      if (aiModeActive && toggleBtn?.dataset.aiState === 'listening') setOrbState('idle');
     });
     recognition.addEventListener('error', () => {
       listening = false;
@@ -621,7 +595,7 @@ import PixelIcon from './ornaments/PixelIcon.astro';
 
   async function askLocalModel(hist: ChatMessage[], page: { title: string; route: string }): Promise<string> {
     const sys = [
-      'You are the Learnex Study Assistant, running on a local model the user chose for privacy. You do not have access to the Learnex vault search tool in this mode — answer from your own knowledge and say so plainly if unsure rather than inventing vault-specific details.',
+      'You are the Learnitas Study Assistant, running on a local model the user chose for privacy. You do not have access to the Learnitas vault search tool in this mode — answer from your own knowledge and say so plainly if unsure rather than inventing vault-specific details.',
       PERSONA_INSTRUCTIONS[persona],
       DIAGRAM_INSTRUCTION,
       `The user is currently reading: "${page.title}" (${page.route}).`,
@@ -709,103 +683,25 @@ import PixelIcon from './ornaments/PixelIcon.astro';
 </script>
 
 <style>
-  /* ── FAB wrapper ─────────────────────────────────────────────────────────── */
-  .assistant-fab-wrap {
-    position: fixed;
-    right: 1.5rem;
-    bottom: 1.5rem;
-    z-index: 70;
-    width: 52px;
-    height: 52px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+  /* The trigger button and its state icons (chat/mic/speaker/spinner) now
+     live in Header.astro's toolbar as a plain .tool-btn — see
+     #assistant-toggle-btn there, including the data-ai-state-driven bob/
+     think/spin animations that replaced this FAB's old ripple rings (rings
+     were sized for a standalone 52px corner button and didn't translate to
+     a compact toolbar icon). What's left here is the panel this button
+     opens, plus the rolling caption strip shown in its place during voice
+     mode — both now anchored below the header instead of above a
+     bottom-right FAB that no longer exists. */
 
-  /* ── Ripple rings ────────────────────────────────────────────────────────── */
-  .assistant-fab-ring {
-    position: absolute;
-    inset: -14px;
-    border-radius: 999px;
-    border: 2.5px solid var(--accent);
-    opacity: 0;
-    pointer-events: none;
-  }
-  .assistant-fab-wrap[data-ai-state='listening'] .assistant-fab-ring--1,
-  .assistant-fab-wrap[data-ai-state='speaking']  .assistant-fab-ring--1 {
-    animation: fab-ripple 1.7s ease-out infinite;
-  }
-  .assistant-fab-wrap[data-ai-state='listening'] .assistant-fab-ring--2,
-  .assistant-fab-wrap[data-ai-state='speaking']  .assistant-fab-ring--2 {
-    animation: fab-ripple 1.7s ease-out infinite 0.6s;
-  }
-  .assistant-fab-wrap[data-ai-state='thinking'] .assistant-fab-ring--1 {
-    animation: fab-pulse-ring 1.1s ease-in-out infinite;
-  }
-  @keyframes fab-ripple {
-    0%   { transform: scale(0.7);  opacity: 0.65; }
-    100% { transform: scale(1.75); opacity: 0;    }
-  }
-  @keyframes fab-pulse-ring {
-    0%, 100% { transform: scale(1);    opacity: 0.25; }
-    50%       { transform: scale(1.3);  opacity: 0.55; }
-  }
-
-  /* ── FAB button ──────────────────────────────────────────────────────────── */
-  .assistant-fab {
-    position: relative;
-    z-index: 1;
-    width: 52px;
-    height: 52px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    border: 1.5px solid var(--border-strong);
-    background: var(--accent);
-    color: var(--accent-ink);
-    cursor: pointer;
-    box-shadow: 0 10px 28px -10px hsl(var(--shadow-color) / 0.55);
-    transition: background 0.18s, box-shadow 0.18s, transform 0.18s;
-  }
-  .assistant-fab:hover { background: var(--accent-strong); transform: scale(1.07); }
-
-  /* AI state button animations */
-  .assistant-fab-wrap[data-ai-state='listening'] .assistant-fab,
-  .assistant-fab-wrap[data-ai-state='speaking']  .assistant-fab {
-    animation: fab-bob 1s ease-in-out infinite;
-    box-shadow: 0 0 0 4px hsl(var(--shadow-color)/0.12), 0 10px 28px -10px hsl(var(--shadow-color)/0.55);
-  }
-  .assistant-fab-wrap[data-ai-state='thinking'] .assistant-fab {
-    animation: fab-think 0.85s ease-in-out infinite;
-  }
-  @keyframes fab-bob   { 0%,100%{transform:scale(1)} 50%{transform:scale(1.09)} }
-  @keyframes fab-think { 0%,100%{transform:scale(1)} 50%{transform:scale(0.93)} }
-
-  /* Spinner rotation */
-  .assistant-fab-wrap[data-ai-state='thinking'] #fab-icon-spinner svg {
-    animation: spin 0.85s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Icon slots */
-  .assistant-fab-icon { display: flex; align-items: center; justify-content: center; }
-  .assistant-fab-icon[hidden] { display: none !important; }
-
-  /* Tooltip anchored right */
-  .assistant-fab[data-tooltip]::after        { left: auto; right: 0; transform: translateY(4px); }
-  .assistant-fab[data-tooltip]:hover::after,
-  .assistant-fab[data-tooltip]:focus-visible::after { transform: translateY(0); }
-
-  /* ── Rolling caption bar — LEFT of FAB ──────────────────────────────────── */
+  /* ── Rolling caption bar — appears where the panel would, during voice mode ── */
   .assistant-caption-bar {
     position: fixed;
-    /* align vertically with FAB center (52px / 2 = 26px) */
-    bottom: calc(1.5rem + 14px);   /* 1.5rem + (52-24)/2 */
-    right: calc(1.5rem + 52px + 14px);
+    top: calc(var(--header-h) + 0.6rem);
+    right: 1.5rem;
     z-index: 71;
-    max-width: min(240px, calc(100vw - 52px - 4rem));
+    max-width: min(240px, calc(100vw - 4rem));
     pointer-events: none;
+    transition: top 0.32s ease;
   }
   .assistant-caption-bar[hidden] { display: none; }
 
@@ -834,14 +730,14 @@ import PixelIcon from './ornaments/PixelIcon.astro';
     transform: translateY(0);
   }
 
-  /* ── Chat panel — sits ABOVE FAB, toggled by click ──────────────────────── */
+  /* ── Chat panel — drops down from the header button that opens it ──────── */
   .assistant-panel {
     position: fixed;
+    top: calc(var(--header-h) + 0.6rem);
     right: 1.5rem;
-    bottom: calc(1.5rem + 52px + 12px);
     z-index: 70;
     width: min(23rem, calc(100vw - 2rem));
-    height: min(32rem, calc(100vh - 3rem - 52px - 12px));
+    height: min(32rem, calc(100vh - var(--header-h) - 2.5rem));
     display: flex;
     flex-direction: column;
     background: var(--bg-elevated);
@@ -850,13 +746,14 @@ import PixelIcon from './ornaments/PixelIcon.astro';
     box-shadow: 0 20px 48px -16px hsl(var(--shadow-color) / 0.6);
     overflow: hidden;
     /* smooth open/close */
-    transform-origin: bottom right;
+    transform-origin: top right;
     animation: panel-pop-in 0.22s cubic-bezier(0.34,1.56,0.64,1) both;
+    transition: top 0.32s ease;
   }
   .assistant-panel[hidden] { display: none; animation: none; }
   @keyframes panel-pop-in {
-    from { opacity: 0; transform: scale(0.88) translateY(12px); }
-    to   { opacity: 1; transform: scale(1)    translateY(0);    }
+    from { opacity: 0; transform: scale(0.88) translateY(-12px); }
+    to   { opacity: 1; transform: scale(1)    translateY(0);     }
   }
 
   .assistant-header {
@@ -1177,16 +1074,13 @@ import PixelIcon from './ornaments/PixelIcon.astro';
 
   /* ── Mobile ──────────────────────────────────────────────────────────────── */
   @media (max-width: 480px) {
-    .assistant-fab-wrap { right: 1rem; bottom: 1rem; }
     .assistant-panel {
       right: 0.5rem;
-      bottom: calc(1rem + 52px + 10px);
       width: calc(100vw - 1rem);
     }
     .assistant-caption-bar {
-      right: calc(1rem + 52px + 10px);
-      bottom: calc(1rem + 14px);
-      max-width: calc(100vw - 52px - 3rem);
+      right: 0.5rem;
+      max-width: calc(100vw - 1rem);
     }
   }
 </style>

@@ -1,4 +1,4 @@
-/** Renders Learnex's own tiny node/edge diagram format (see DIAGRAM_INSTRUCTION
+/** Renders Learnitas's own tiny node/edge diagram format (see DIAGRAM_INSTRUCTION
  * in ai-personas.ts) as a self-contained inline SVG string — no charting
  * library. Shared by StudyAssistant.astro (renders it inside a chat bubble)
  * and StudyCanvas.astro (renders the same spec as a non-destructive overlay

@@ -52,7 +52,7 @@ VB.NET supports all standard .NET data types, using recognizable keywords:
 - `Object`: The root type from which all other types derive.
 
 Variables are declared using the `Dim` keyword (short for Dimension):
-```vbnet
+```vb
 Dim age As Integer = 30
 Dim name As String = "Alice"
 Dim isEmployed As Boolean = True
@@ -63,7 +63,7 @@ Dim salary As Decimal = 65000.5D
 VB.NET provides traditional control flow structures, block-scoped by keywords like `End If`, `Next`, and `End Select`.
 
 **If-Then-Else:**
-```vbnet
+```vb
 If age >= 18 Then
     Console.WriteLine("Adult")
 ElseIf age >= 13 Then
@@ -74,7 +74,7 @@ End If
 ```
 
 **Select Case (Switch statement equivalent):**
-```vbnet
+```vb
 Select Case dayOfWeek
     Case 1
         Console.WriteLine("Monday")
@@ -91,7 +91,7 @@ End Select
 - `While ... End While`
 - `Do While ... Loop` or `Do Until ... Loop`
 
-```vbnet
+```vb
 For i As Integer = 1 To 5
     Console.WriteLine("Iteration: " & i)
 Next
@@ -104,7 +104,7 @@ Next
 ### Functions and Methods
 In VB.NET, subroutines that do not return a value are called `Sub`, and those that do return a value are called `Function`. Parameters can be passed `ByVal` (the default) or `ByRef`.
 
-```vbnet
+```vb
 ' A subroutine (no return value)
 Sub PrintGreeting(ByVal name As String)
     Console.WriteLine("Hello, " & name)
@@ -122,7 +122,7 @@ VB.NET is fully object-oriented, supporting inheritance, polymorphism, encapsula
 - Constructors are named `New`.
 - Properties use getters and setters, though auto-implemented properties are common.
 
-```vbnet
+```vb
 Public Class Person
     Public Property Name As String
     Public Property Age As Integer
@@ -145,7 +145,7 @@ VB.NET leverages the robust architecture of the .NET framework, meaning its adva
 ### Memory Management and Garbage Collection
 Memory management in VB.NET is handled automatically by the .NET Garbage Collector (GC). The GC allocates and deallocates memory for objects on the managed heap. While developers do not have to free memory manually, understanding the `IDisposable` interface and the `Using` statement is crucial for deterministically releasing unmanaged resources like file handles or database connections.
 
-```vbnet
+```vb
 Using reader As New System.IO.StreamReader("file.txt")
     Dim content As String = reader.ReadToEnd()
     Console.WriteLine(content)
@@ -155,7 +155,7 @@ End Using ' The reader is automatically disposed here.
 ### Concurrency and Asynchronous Programming
 Modern VB.NET natively supports the Task-based Asynchronous Pattern (TAP) via the `Async` and `Await` keywords. This allows developers to write non-blocking code that looks synchronous, avoiding callback hell and UI-freezing.
 
-```vbnet
+```vb
 Public Async Function FetchDataAsync(url As String) As Task(Of String)
     Using client As New HttpClient()
         ' Await suspends the execution until the network request completes
@@ -168,7 +168,7 @@ End Function
 ### Generics
 Generics allow you to define classes, interfaces, and methods with placeholders for the types they store or use. This improves type safety and performance by avoiding boxing and unboxing of value types. In VB.NET, generics are denoted using the `(Of T)` syntax.
 
-```vbnet
+```vb
 ' A generic class
 Public Class GenericBox(Of T)
     Private _item As T
@@ -186,7 +186,7 @@ End Class
 ### Language-Integrated Query (LINQ)
 One of the most powerful features of VB.NET is its deep integration with LINQ. VB.NET provides query comprehension syntax that closely resembles SQL, often making it more expressive for database queries and data manipulation than its C# counterpart.
 
-```vbnet
+```vb
 Dim numbers As Integer() = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 Dim evens = From num In numbers
             Where num Mod 2 = 0
@@ -225,7 +225,7 @@ VB.NET uses the Base Class Library (BCL) of .NET (`System.*` namespaces). In add
 ### 1. Hello World
 The classic introductory program. VB.NET uses a `Module` or a `Class` containing a `Main` subroutine as the entry point.
 
-```vbnet
+```vb
 ' Program.vb
 Imports System
 
@@ -243,7 +243,7 @@ End Module
 ### 2. Data Structures and Collections
 Working with .NET generic collections is strongly typed and safe. Here we use a `List(Of T)` and a `Dictionary(Of TKey, TValue)`.
 
-```vbnet
+```vb
 Imports System.Collections.Generic
 
 Module CollectionsExample
@@ -275,7 +275,7 @@ End Module
 ### 3. Object-Oriented Programming
 Demonstrating inheritance, method overriding, and polymorphism.
 
-```vbnet
+```vb
 Public MustInherit Class Animal
     Public Property Name As String
     
@@ -328,7 +328,7 @@ End Module
 ### 4. File I/O and Exception Handling
 Reading and writing files while properly handling potential errors using `Try...Catch...Finally`.
 
-```vbnet
+```vb
 Imports System.IO
 
 Module FileIOExample
@@ -372,7 +372,7 @@ End Module
 ### 5. Asynchronous Network Request
 Using `HttpClient` and the `Async`/`Await` pattern to fetch data from an API without blocking the main thread.
 
-```vbnet
+```vb
 Imports System.Net.Http
 Imports System.Threading.Tasks
 
@@ -410,7 +410,7 @@ End Module
 ### 6. Functional Features with LINQ
 LINQ queries allow for declarative data manipulation. VB.NET has excellent syntactical support for LINQ.
 
-```vbnet
+```vb
 Imports System.Linq
 
 Module LinqExample
@@ -454,7 +454,7 @@ To write maintainable and robust VB.NET code, the community and Microsoft recomm
 ### 1. Enforce Strict Typing (`Option Strict On`)
 By default, VB.NET allows implicit type conversions and late binding, a relic of classic VB. This can lead to runtime errors that could have been caught at compile time.
 **Rule:** Always enable `Option Strict On` in your project settings. This forces explicit casting and enforces type safety.
-```vbnet
+```vb
 ' With Option Strict On, this is illegal:
 ' Dim obj As Object = "Hello"
 ' Dim length As Integer = obj.Length ' Compiler Error
@@ -474,7 +474,7 @@ VB.NET includes the `Microsoft.VisualBasic` namespace for backward compatibility
 
 ### 3. Use `String.Format` or String Interpolation
 String concatenation using `&` can become messy and unreadable. Modern VB.NET supports string interpolation, making string construction cleaner.
-```vbnet
+```vb
 Dim name As String = "John"
 Dim age As Integer = 30
 
@@ -491,7 +491,7 @@ Dim message3 = $"My name is {name} and I am {age} years old."
 ### 4. Properly Dispose of Resources
 Whenever working with unmanaged resources (database connections, file streams, network sockets), ensure they are closed.
 **Rule:** Always use the `Using` statement for objects that implement `IDisposable`. This guarantees `Dispose()` is called even if an exception occurs.
-```vbnet
+```vb
 ' The connection is guaranteed to be closed when exiting the block
 Using conn As New SqlConnection(connectionString)
     conn.Open()
@@ -506,7 +506,7 @@ Legacy collections like `ArrayList` or `HashTable` are weakly typed (store `Obje
 ### 6. Avoid "Catch Everything" Blocks
 Swallowing exceptions without proper logging or handling makes debugging nearly impossible.
 **Rule:** Catch specific exceptions when possible. If you must catch a general `Exception`, at least log it. Never leave an empty `Catch` block.
-```vbnet
+```vb
 Try
     ' risky code
 Catch ex As FileNotFoundException
@@ -525,7 +525,7 @@ Follow standard .NET naming conventions:
 - **camelCase** for local variables and method parameters.
 - **_camelCase** for private class-level fields.
 
-```vbnet
+```vb
 Public Class CustomerService
     Private _customerRepository As ICustomerRepository ' Private field
 

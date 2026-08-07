@@ -3,7 +3,7 @@
  * genuine infinite loop in either language can be killed by terminating the
  * worker (the only reliable way to interrupt synchronous script execution),
  * and so sandboxed code never touches this page's DOM, cookies, or
- * localStorage. Nothing here ever calls a Learnex endpoint: JS runs fully
+ * localStorage. Nothing here ever calls a Learnitas endpoint: JS runs fully
  * offline, Python only reaches out to jsdelivr's CDN once to fetch the
  * Pyodide (WASM) runtime itself, on demand, the first time a Python
  * sandbox is actually run. */

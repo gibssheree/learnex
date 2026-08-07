@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Copies the two source folders from the personal Obsidian vault (one level
 // up from this project) into content/, overwriting whatever's already
-// there. Learnex reads from content/, not from the vault directly (see
+// there. Learnitas reads from content/, not from the vault directly (see
 // src/lib/vault.ts) — run this after editing notes and before committing,
 // or nothing published here changes.
 

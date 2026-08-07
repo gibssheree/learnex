@@ -1,4 +1,4 @@
-const KEY = 'learnex-bookmarks';
+const KEY = 'learnitas-bookmarks';
 
 export interface Bookmark {
   title: string;
@@ -16,7 +16,7 @@ export function getBookmarks(): Bookmark[] {
 
 function save(list: Bookmark[]) {
   localStorage.setItem(KEY, JSON.stringify(list));
-  document.dispatchEvent(new CustomEvent('learnex:bookmarks-changed'));
+  document.dispatchEvent(new CustomEvent('learnitas:bookmarks-changed'));
 }
 
 export function isBookmarked(url: string): boolean {

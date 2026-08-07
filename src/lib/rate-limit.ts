@@ -1,5 +1,5 @@
 /** Best-effort, in-memory-per-instance rate limiter for the public
- * /api/v1/* endpoints (Phase 5 of LEARNEX_EXPANSION_PLAN.md — the "Living
+ * /api/v1/* endpoints (Phase 5 of LEARNITAS_EXPANSION_PLAN.md — the "Living
  * API"). Deliberately NOT a distributed/durable limiter: Vercel serverless
  * functions aren't guaranteed to stay warm or to share state across
  * concurrent instances, so this resets on cold start and isn't coordinated

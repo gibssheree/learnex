@@ -11,7 +11,7 @@ interface Props {
   description?: string;
 }
 
-const { title, description = 'Learnex — a classical, illustrated archive for learning to code.' } =
+const { title, description = 'Learnitas — a classical, illustrated archive for learning to code.' } =
   Astro.props;
 ---
 
@@ -24,29 +24,29 @@ const { title, description = 'Learnex — a classical, illustrated archive for l
     <meta name="generator" content={Astro.generator} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <link rel="alternate" type="application/rss+xml" title="Learnex" href="/rss.xml" />
-    <title>{title === 'Learnex' ? title : `${title} · Learnex`}</title>
+    <link rel="alternate" type="application/rss+xml" title="Learnitas" href="/rss.xml" />
+    <title>{title === 'Learnitas' ? title : `${title} · Learnitas`}</title>
     <script is:inline>
       (function () {
         try {
-          var theme = localStorage.getItem('learnex-theme');
+          var theme = localStorage.getItem('learnitas-theme');
           if (theme === 'light' || theme === 'dark') {
             document.documentElement.setAttribute('data-theme', theme);
           }
-          var textSize = localStorage.getItem('learnex-text-size');
+          var textSize = localStorage.getItem('learnitas-text-size');
           if (textSize === 'sm' || textSize === 'lg') {
             document.documentElement.setAttribute('data-text-size', textSize);
           }
-          if (localStorage.getItem('learnex-crt') === 'on') {
+          if (localStorage.getItem('learnitas-crt') === 'on') {
             document.documentElement.setAttribute('data-crt', 'on');
           }
-          if (localStorage.getItem('learnex-sidebar') === 'collapsed') {
+          if (localStorage.getItem('learnitas-sidebar') === 'collapsed') {
             document.documentElement.setAttribute('data-sidebar', 'collapsed');
           }
-          if (localStorage.getItem('learnex-navbar') === 'hidden') {
+          if (localStorage.getItem('learnitas-navbar') === 'hidden') {
             document.documentElement.setAttribute('data-navbar', 'hidden');
           }
-          if (localStorage.getItem('learnex-ipad-mode') === 'on') {
+          if (localStorage.getItem('learnitas-ipad-mode') === 'on') {
             document.documentElement.setAttribute('data-ipad-mode', 'on');
           }
         } catch (e) {}
@@ -58,8 +58,8 @@ const { title, description = 'Learnex — a classical, illustrated archive for l
     <div class="shell">
       <aside id="sidebar-aside" class="sidebar-aside">
         <a class="sidebar-wordmark" href="/">
-          <img class="sidebar-wordmark-logo" src="/images/learnex.png" alt="" width="37" height="44" />
-          <span class="sidebar-wordmark-text">Learnex</span>
+          <img class="sidebar-wordmark-logo" src="/images/learnitas.png" alt="" width="37" height="44" />
+          <span class="sidebar-wordmark-text">Learnitas</span>
         </a>
         <Sidebar />
       </aside>
@@ -117,7 +117,7 @@ const { title, description = 'Learnex — a classical, illustrated archive for l
       });
 
       const collapseBtn = document.getElementById('sidebar-collapse-btn');
-      const SIDEBAR_KEY = 'learnex-sidebar';
+      const SIDEBAR_KEY = 'learnitas-sidebar';
       const root = document.documentElement;
 
       function syncCollapseBtn() {
@@ -144,7 +144,7 @@ const { title, description = 'Learnex — a classical, illustrated archive for l
       // The header collapsing and the sidebar wordmark fading in are both
       // plain CSS transitions reacting to the same [data-navbar] attribute
       // flip, so they play in sync without any JS-driven animation here.
-      const NAVBAR_KEY = 'learnex-navbar';
+      const NAVBAR_KEY = 'learnitas-navbar';
       const navbarHideBtn = document.getElementById('navbar-hide-btn');
       const navbarShowBtn = document.getElementById('navbar-show-btn');
 

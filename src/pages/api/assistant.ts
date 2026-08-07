@@ -17,7 +17,7 @@ const ai = new GoogleGenAI({ apiKey: import.meta.env.GEMINI_API_KEY ?? '' });
 const searchVaultDeclaration: FunctionDeclaration = {
   name: 'search_vault',
   description:
-    "Searches Learnex's knowledge vault (programming-language notes and CS/software-engineering term notes) for chunks of content relevant to a query. Call this whenever answering requires a specific fact, definition, or detail from the vault rather than general knowledge — don't guess vault-specific content.",
+    "Searches Learnitas's knowledge vault (programming-language notes and CS/software-engineering term notes) for chunks of content relevant to a query. Call this whenever answering requires a specific fact, definition, or detail from the vault rather than general knowledge — don't guess vault-specific content.",
   parametersJsonSchema: {
     type: 'object',
     properties: {
@@ -46,7 +46,7 @@ async function embedQuery(text: string): Promise<number[]> {
 
 function systemInstruction(currentPage?: CurrentPage, persona: Persona = 'direct'): string {
   return [
-    'You are the Learnex Study Assistant, embedded in a personal programming/CS knowledge-vault site.',
+    'You are the Learnitas Study Assistant, embedded in a personal programming/CS knowledge-vault site.',
     "Use the search_vault function whenever you need a specific fact, definition, or example from the vault — don't guess at vault-specific content.",
     'Keep answers study-focused. When you rely on a note, mention its title so the reader knows where it came from.',
     PERSONA_INSTRUCTIONS[persona],

@@ -30,7 +30,7 @@ export const STATIC_COMMANDS: Command[] = [
   { id: 'open-review', label: 'Buka Review', keywords: 'flashcard srs recite', section: 'Navigasi', run: () => { window.location.href = '/review'; } },
   { id: 'open-progress', label: 'Buka Progress (Mastery Map)', keywords: 'mastery badge skill tree', section: 'Navigasi', run: () => { window.location.href = '/progress'; } },
   { id: 'open-search', label: 'Buka halaman Search', section: 'Navigasi', run: () => { window.location.href = '/search'; } },
-  { id: 'open-about', label: 'Buka About Learnex', section: 'Navigasi', run: () => { window.location.href = '/about'; } },
+  { id: 'open-about', label: 'Buka About Learnitas', section: 'Navigasi', run: () => { window.location.href = '/about'; } },
   { id: 'open-api', label: 'Buka dokumentasi API', keywords: 'json endpoint developer agent', section: 'Navigasi', run: () => { window.location.href = '/api'; } },
   { id: 'random-note', label: 'Buka catatan acak', keywords: 'surprise dice random', section: 'Navigasi', run: () => clickById('random-note-btn') },
 
@@ -48,6 +48,6 @@ export const STATIC_COMMANDS: Command[] = [
     keywords: 'canvas draw gambar',
     section: 'Aksi',
     available: () => !!document.getElementById('study-canvas-overlay'),
-    run: () => document.dispatchEvent(new CustomEvent('learnex:study-canvas-open', { detail: { route: location.pathname } })),
+    run: () => document.dispatchEvent(new CustomEvent('learnitas:study-canvas-open', { detail: { route: location.pathname } })),
   },
 ];

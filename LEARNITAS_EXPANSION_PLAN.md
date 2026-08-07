@@ -1,11 +1,11 @@
-# Learnex — Expansion Plan (fitur lengkap, khas, tersentralisasi — bukan rewrite)
+# Learnitas — Expansion Plan (fitur lengkap, khas, tersentralisasi — bukan rewrite)
 
 ## Konteks
 
-Dokumen "Learnex Enterprise: The Ultimate Master Blueprint" mengusulkan pivot ke SaaS
+Dokumen "Learnitas Enterprise: The Ultimate Master Blueprint" mengusulkan pivot ke SaaS
 multi-tenant skala enterprise (akun pengguna, PostgreSQL, vector DB tersharding, WebRTC
 multiplayer, WebContainers, generative 3D, kredensial blockchain, dashboard guru). Setelah
-dianalisa terhadap codebase yang sebenarnya, arah itu ditolak: **Learnex tetap situs statis,
+dianalisa terhadap codebase yang sebenarnya, arah itu ditolak: **Learnitas tetap situs statis,
 single-author, local-first** — tanpa akun, tanpa database, seluruh state pengguna (bookmark,
 progres SRS, coretan) tetap hidup di `localStorage`/IndexedDB milik browser masing-masing
 pengguna, persis seperti sekarang.
@@ -21,7 +21,7 @@ sengaja dihindari) — melainkan **satu titik masuk yang konsisten** ke semua ka
 (cari, AI, canvas, graph, review, bookmark) dari halaman mana pun, supaya situs terasa satu
 sistem yang koheren, bukan `/graph`, `/review`, `/search` yang berdiri sendiri-sendiri.
 
-**"Khas" (unik)** berarti memperdalam apa yang sudah membedakan Learnex — catatan pribadi
+**"Khas" (unik)** berarti memperdalam apa yang sudah membedakan Learnitas — catatan pribadi
 yang jujur dan bisa salah (bukan referensi generik), graph berbasis `[[wikilink]]` asli,
 estetika ilustrasi klasik, dan anotasi Pencil/touch yang tactile — bukan mengejar paritas
 fitur generik dengan Educative/Coursera/MIT OCW.
@@ -77,7 +77,7 @@ membuka AI Studio, Study Canvas, Review, atau Graph — tanpa reload halaman.
   "personalized, progressively expanding graph" dari blueprint asli — tanpa backend per-user,
   karena subgraph-nya deterministik dari data link yang sudah ada.
 - Pane bisa ditutup/dibuka via tombol kecil di header Study Canvas, state pane mana yang
-  aktif disimpan di `localStorage` (`learnex-canvas-panes`) supaya preferensi user persist.
+  aktif disimpan di `localStorage` (`learnitas-canvas-panes`) supaya preferensi user persist.
 
 ### File — baru
 | File | Tujuan |
@@ -109,7 +109,7 @@ mengambil ide persona & "visualisasi generatif" dari blueprint tapi diskalakan r
 
 ### Desain
 - **Persona AI Tutor** (Socratic / Direct / Encouraging) — pilihan tersimpan di
-  `localStorage` (`learnex-ai-persona`), dikirim sebagai bagian body request ke
+  `localStorage` (`learnitas-ai-persona`), dikirim sebagai bagian body request ke
   `api/assistant.ts`, yang menyisipkan variasi kalimat ke `systemInstruction()` (fungsi ini
   sudah ada dan sudah menerima `currentPage` — tinggal tambah parameter `persona`). Tidak ada
   perubahan arsitektur, murni tambahan string di system prompt.
@@ -216,7 +216,7 @@ gratis di browser tanpa server eksekusi.
 
 ### Verifikasi
 1. Buka catatan Python dengan blok `python:run` → klik Run → output muncul tanpa reload,
-   tanpa request jaringan ke server Learnex.
+   tanpa request jaringan ke server Learnitas.
 2. Kode dengan infinite loop tidak membekukan tab (Worker bisa di-terminate via tombol Stop).
 
 ---

@@ -46,7 +46,7 @@ const issueParams = new URLSearchParams({
   labels: 'content',
   body: 'Note: ' + Astro.url.pathname + "\n\nWhat's wrong:\n",
 });
-const issueUrl = 'https://github.com/gibssheree/learnex/issues/new?' + issueParams.toString();
+const issueUrl = 'https://github.com/gibssheree/learnitas/issues/new?' + issueParams.toString();
 ---
 
 <BaseLayout title={title}>
@@ -162,7 +162,7 @@ const issueUrl = 'https://github.com/gibssheree/learnex/issues/new?' + issuePara
     sync(isBookmarked(url));
     btn.addEventListener('click', () => sync(toggleBookmark({ url, title })));
     // Stay in sync if a bookmark is removed elsewhere (e.g. the header panel).
-    document.addEventListener('learnex:bookmarks-changed', () => sync(isBookmarked(url)));
+    document.addEventListener('learnitas:bookmarks-changed', () => sync(isBookmarked(url)));
   }
 
   document.getElementById('print-note-btn')?.addEventListener('click', () => window.print());

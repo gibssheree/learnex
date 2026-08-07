@@ -136,7 +136,7 @@ While assembly itself is extremely low-level, modern assemblers like NASM provid
 ### 1. Hello World (Direct Syscalls)
 The classic Hello World program, executed using direct Linux kernel system calls instead of relying on the C standard library.
 
-```nasm
+```asm
 ; hello.asm
 ; To compile and link on Linux:
 ; nasm -f elf64 hello.asm
@@ -166,7 +166,7 @@ _start:
 ### 2. Basic Data Structures (Arrays and Structs)
 Because assembly lacks high-level struct definitions, you build them by mentally mapping out memory offsets.
 
-```nasm
+```asm
 section .data
     ; Define an array of five 64-bit integers (QWORDs)
     my_array dq 10, 20, 30, 40, 50
@@ -206,7 +206,7 @@ _start:
 ### 3. Functions and System V ABI Calling Convention
 Demonstrating how to properly pass arguments, build a stack frame, and return a value.
 
-```nasm
+```asm
 section .text
     global _start
 
@@ -244,7 +244,7 @@ _start:
 ### 4. Advanced: Concurrency (Implementing a Spinlock)
 Using atomic hardware instructions to synchronize access across multiple CPU threads.
 
-```nasm
+```asm
 section .bss
     lock_var resd 1              ; Reserve a 32-bit variable. 0 = unlocked, 1 = locked
 
@@ -276,7 +276,7 @@ release_lock:
 ### 5. Advanced: OOP Patterns (VTable Simulation)
 You can simulate polymorphism and inheritance in assembly by building Virtual Method Tables (VTables) manually.
 
-```nasm
+```asm
 section .data
     str_bark db "Woof!", 0xA
     len_bark equ $ - str_bark
@@ -334,7 +334,7 @@ _start:
 ### 6. Network Requests via Syscalls (TCP Socket & Connect)
 A rudimentary TCP client that opens a socket, connects to localhost port 80, and immediately exits.
 
-```nasm
+```asm
 section .data
     ; Representing C struct sockaddr_in
     sockaddr_in:

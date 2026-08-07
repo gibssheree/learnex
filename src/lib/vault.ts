@@ -9,7 +9,7 @@ import matter from 'gray-matter';
 // relative to its own file location. astro dev/build/preview always run
 // from the project root, so cwd is stable everywhere this code executes.
 const PROJECT_ROOT = process.cwd();
-// Learnex owns its own copy of the content under content/ — it's no longer
+// Learnitas owns its own copy of the content under content/ — it's no longer
 // read live from the personal Obsidian vault one folder up. Publishing an
 // update means copying fresh notes in here (see the sync script), not just
 // editing the vault and rebuilding.

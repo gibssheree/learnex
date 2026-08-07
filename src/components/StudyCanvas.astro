@@ -224,7 +224,7 @@ const knowledgeGroup = allTopics.filter(t => t.group === 'Knowledge');
     graphContent!.innerHTML = buildFocusedGraphSvg(data, route);
   }
 
-  const PANE_KEY = 'learnex-canvas-panes';
+  const PANE_KEY = 'learnitas-canvas-panes';
   type PaneTab = 'reference' | 'graph';
   let activePane: PaneTab = localStorage.getItem(PANE_KEY) === 'graph' ? 'graph' : 'reference';
 
@@ -274,7 +274,7 @@ const knowledgeGroup = allTopics.filter(t => t.group === 'Knowledge');
     if (overlay!.hidden) openCanvas();
   }
 
-  document.addEventListener('learnex:assistant-diagram', ((e: Event) => {
+  document.addEventListener('learnitas:assistant-diagram', ((e: Event) => {
     showDiagram((e as CustomEvent<DiagramSpec>).detail);
   }) as EventListener);
 
@@ -285,8 +285,10 @@ const knowledgeGroup = allTopics.filter(t => t.group === 'Knowledge');
     assistantHomeNext = assistantRoot.nextSibling;
     assistantDock!.appendChild(assistantRoot);
     assistantRoot.classList.add('study-canvas-assistant-docked');
-    // Open it in place of the FAB it no longer has room to show.
-    const toggleBtn = assistantRoot.querySelector<HTMLButtonElement>('#assistant-toggle-btn');
+    // Open it in place of the toolbar button, which the docked layout has
+    // no room to show — that button lives in Header.astro, outside
+    // .assistant-root, so this is a document-wide lookup, not scoped to it.
+    const toggleBtn = document.getElementById('assistant-toggle-btn') as HTMLButtonElement | null;
     const panel = assistantRoot.querySelector<HTMLElement>('#assistant-panel');
     if (toggleBtn && panel?.hidden) toggleBtn.click();
   }
@@ -333,7 +335,7 @@ const knowledgeGroup = allTopics.filter(t => t.group === 'Knowledge');
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && overlay && !overlay.hidden) closeCanvas();
   });
-  document.addEventListener('learnex:study-canvas-open', ((e: Event) => {
+  document.addEventListener('learnitas:study-canvas-open', ((e: Event) => {
     const detail = (e as CustomEvent<{ route: string }>).detail;
     if (detail?.route && detail.route !== (overlay!.dataset.route ?? location.pathname)) return;
     openCanvas();
@@ -627,9 +629,6 @@ const knowledgeGroup = allTopics.filter(t => t.group === 'Knowledge');
   .study-canvas-assistant-dock {
     display: flex;
     flex-direction: column;
-  }
-  :global(.study-canvas-assistant-docked .assistant-fab) {
-    display: none;
   }
   :global(.study-canvas-assistant-docked .assistant-panel) {
     position: static;

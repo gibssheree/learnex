@@ -31,7 +31,7 @@ const { route } = Astro.props;
   });
 
   toolbar.querySelector('.annotate-expand-btn')?.addEventListener('click', () => {
-    document.dispatchEvent(new CustomEvent('learnex:study-canvas-open', { detail: { route } }));
+    document.dispatchEvent(new CustomEvent('learnitas:study-canvas-open', { detail: { route } }));
   });
 </script>
 

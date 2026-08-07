@@ -11,20 +11,20 @@ const termCount = terms.filter((t) => !t.data.isMoc).length;
 const knowledgeCount = knowledge.filter((k) => !k.data.isMoc).length;
 ---
 
-<BaseLayout title="About" description="What Learnex is and how it's built.">
+<BaseLayout title="About" description="What Learnitas is and how it's built.">
   <div class="about-page">
     <CornerFrame class="page-leaf">
       <div class="page-leaf-inner">
         <header class="about-header">
-          <h1>About Learnex</h1>
+          <h1>About Learnitas</h1>
         </header>
 
         <div class="vault-prose drop-cap">
           <p>
-            Learnex is one person's ongoing notes on programming languages, computer science, and
+            Learnitas is one person's ongoing notes on programming languages, computer science, and
             a growing set of other subjects, published as a browsable archive. Every page here,
             all {languageCount + termCount + knowledgeCount} of them, started as a plain markdown
-            file in a private Obsidian vault, then was copied into this project's own
+            file in a private Obsidian vault, then was copied into this project's own{' '}
             <code>content/</code> folder and committed to source control. Editing happens in that
             private vault; publishing an update means syncing the change in and pushing it. The
             live site never reads the private vault directly, and never has write access back
@@ -41,7 +41,7 @@ const knowledgeCount = knowledge.filter((k) => !k.data.isMoc).length;
             rather than a Terms & Knowledge sub-domain) — parses each note's frontmatter, and
             rewrites every <code>[[wikilink]]</code> into a real route by matching titles across
             the whole archive. Search is <a href="https://pagefind.app" target="_blank" rel="noopener">Pagefind</a>,
-            indexed after the production build — the header's dropdown shows a quick preview, and
+            indexed after the production build — the header's dropdown shows a quick preview, and{' '}
             <a href="/search">the full search page</a> has everything else. Both only work once
             the site has been built for production, not in a plain dev server.
           </p>
@@ -65,7 +65,7 @@ const knowledgeCount = knowledge.filter((k) => !k.data.isMoc).length;
 
           <h2>Reading it from outside a browser</h2>
           <p>
-            Every note here is also available as plain JSON — no key, no account — at
+            Every note here is also available as plain JSON — no key, no account — at{' '}
             <a href="/api">/api</a>. It exists mainly for scripts and AI agents that want the
             vault's actual markdown rather than scraped HTML, but it's just as usable from a
             terminal with <code>curl</code>.
@@ -73,7 +73,7 @@ const knowledgeCount = knowledge.filter((k) => !k.data.isMoc).length;
 
           <h2>What's in it, and what's coming</h2>
           <p>
-            Right now the archive holds {languageCount} programming language notes, {termCount}
+            Right now the archive holds {languageCount} programming language notes, {termCount}{' '}
             computer science term notes across the domains listed on the
             <a href="/terms">Terms &amp; Knowledge</a> page, and {knowledgeCount} notes across
             the standalone subjects in the sidebar below it — founders and startups, finance and
@@ -82,7 +82,7 @@ const knowledgeCount = knowledge.filter((k) => !k.data.isMoc).length;
             committed — this page reads them the same way every other page does, live from the
             content folder at build time, so they're never manually updated by hand. Everything
             here is one person's understanding, written in the open and corrected as it turns out
-            to be wrong, not a finished or authoritative reference —
+            to be wrong, not a finished or authoritative reference —{' '}
             <a href="/rss.xml">subscribe via RSS</a> to follow what gets added, and if something's
             incorrect, every note has a link at the bottom to report it directly.
           </p>

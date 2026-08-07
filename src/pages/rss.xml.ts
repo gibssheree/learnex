@@ -4,8 +4,8 @@ import { listVaultFiles, readNote, extractSummary, routeFor, lastModified, type 
 
 // No real domain has been chosen yet (still deciding on hosting) — this is a
 // placeholder so the feed's item links and self-reference are well-formed
-// absolute URLs. Update once Learnex has an actual home.
-const SITE_URL = 'https://learnex.example.com';
+// absolute URLs. Update once Learnitas has an actual home.
+const SITE_URL = 'https://learnitas.example.com';
 
 const MAX_ITEMS = 50;
 
@@ -32,7 +32,7 @@ export const GET: APIRoute = async () => {
     .slice(0, MAX_ITEMS);
 
   return rss({
-    title: 'Learnex',
+    title: 'Learnitas',
     description: 'An illustrated archive of programming languages, computer science, and beyond.',
     site: SITE_URL,
     items,

@@ -108,7 +108,7 @@ import CornerFrame from '../../components/ornaments/CornerFrame.astro';
   // srs-client.ts) counting consecutive "again" grades per route, so a card
   // that keeps failing can point at a prerequisite without touching the
   // SM-2 scheduler's own state shape. Resets the moment a card succeeds.
-  const AGAIN_STREAK_KEY = 'learnex-srs-again-streak';
+  const AGAIN_STREAK_KEY = 'learnitas-srs-again-streak';
   const NUDGE_THRESHOLD = 3;
 
   function loadAgainStreaks(): Record<string, number> {

@@ -25,11 +25,11 @@ export function isPersona(value: unknown): value is Persona {
   return value === 'direct' || value === 'socratic' || value === 'encouraging';
 }
 
-// Learnex's own tiny diagram format — NOT real Mermaid syntax. A hand-rolled
+// Learnitas's own tiny diagram format — NOT real Mermaid syntax. A hand-rolled
 // node/edge JSON block that src/lib/diagram.ts lays out and renders as
 // inline SVG (see that file for why: this repo has zero client charting
 // dependencies, and a personal-vault-scale "visualize this" feature doesn't
 // need one). The instruction says so explicitly so the model doesn't emit
 // real Mermaid grammar we can't parse.
 export const DIAGRAM_INSTRUCTION =
-  'If the user explicitly asks you to visualize, diagram, or sketch something, reply with a fenced ```learnex-diagram code block containing JSON of the shape {"nodes":[{"id":"a","label":"..."}],"edges":[{"from":"a","to":"b","label":"optional"}]} (max ~10 nodes) instead of only describing it in prose — keep any surrounding text brief. This is Learnex\'s own lightweight diagram format, not real Mermaid syntax, so do not use Mermaid grammar inside it.';
+  'If the user explicitly asks you to visualize, diagram, or sketch something, reply with a fenced ```learnitas-diagram code block containing JSON of the shape {"nodes":[{"id":"a","label":"..."}],"edges":[{"from":"a","to":"b","label":"optional"}]} (max ~10 nodes) instead of only describing it in prose — keep any surrounding text brief. This is Learnitas\'s own lightweight diagram format, not real Mermaid syntax, so do not use Mermaid grammar inside it.';

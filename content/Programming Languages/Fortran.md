@@ -145,7 +145,7 @@ While Fortran's ecosystem isn't as expansive for general-purpose programming as 
 ### 1. The Basics: Hello World and Variables
 Demonstrates basic structure, `implicit none`, and I/O.
 
-```fortran
+```fortran-free-form
 program hello_world
     ! Always use this to prevent accidental variable creation due to typos
     implicit none
@@ -171,7 +171,7 @@ end program hello_world
 ### 2. Array Syntax and Vectorization
 Fortran's superpower. Array operations are concise and compiler-optimized.
 
-```fortran
+```fortran-free-form
 program array_features
     implicit none
     
@@ -212,7 +212,7 @@ end program array_features
 ### 3. Modules and Derived Types (Structs)
 Modern grouping of data and functions.
 
-```fortran
+```fortran-free-form
 module geometry_mod
     implicit none
     private ! Hide everything by default
@@ -253,7 +253,7 @@ end program test_geometry
 ### 4. Object-Oriented Programming
 Fortran 2003 OOP with type-bound procedures and polymorphism.
 
-```fortran
+```fortran-free-form
 module shape_mod
     implicit none
     
@@ -314,7 +314,7 @@ end program test_oop
 ### 5. C Interoperability
 Calling a standard C math function from Fortran.
 
-```fortran
+```fortran-free-form
 program c_interop
     ! Use the intrinsic module for C bindings
     use iso_c_binding, only: c_double
@@ -342,7 +342,7 @@ end program c_interop
 ### 6. Parallel Programming: Coarrays
 A simple example of Fortran's native parallel capability (requires compiler flags like `-fcoarray=single` or `-fcoarray=lib` for OpenCoarrays).
 
-```fortran
+```fortran-free-form
 program hello_coarrays
     implicit none
     
@@ -376,7 +376,7 @@ end program hello_coarrays
 ### 7. File I/O and Formatting
 Demonstrates reading from and writing to files using formatted I/O.
 
-```fortran
+```fortran-free-form
 program file_io
     implicit none
     
@@ -438,7 +438,7 @@ Avoid `common` blocks, which are remnants of Fortran 77. They are error-prone an
 ### Modern Precision Control
 Instead of using non-standard `real*8` or assuming `double precision` does what you want across architectures, use `iso_fortran_env` to guarantee precision.
 
-```fortran
+```fortran-free-form
 use iso_fortran_env, only: dp => real64
 real(dp) :: accurate_variable
 ```

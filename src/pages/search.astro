@@ -2,7 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="Search" description="Search the full Learnex archive.">
+<BaseLayout title="Search" description="Search the full Learnitas archive.">
   <div class="search-page">
     <header class="search-page-header">
       <p class="font-pixel search-page-kicker">Find Anything</p>
@@ -57,7 +57,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     if (!pagefind) {
       statusEl.textContent = '';
       resultsEl.innerHTML =
-        '<p class="search-page-empty">Search is available once Learnex is built for production (<code>npm run build</code>).</p>';
+        '<p class="search-page-empty">Search is available once Learnitas is built for production (<code>npm run build</code>).</p>';
       return;
     }
 

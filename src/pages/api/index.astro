@@ -13,13 +13,13 @@ const knowledgeCount = knowledge.filter((k) => !k.data.isMoc).length;
 
 <BaseLayout
   title="API"
-  description="A public, read-only JSON API over the Learnex vault — for scripts, tools, and AI agents, not just the browser."
+  description="A public, read-only JSON API over the Learnitas vault — for scripts, tools, and AI agents, not just the browser."
 >
   <div class="api-page">
     <CornerFrame class="page-leaf">
       <div class="page-leaf-inner">
         <header class="api-header">
-          <h1>Learnex API</h1>
+          <h1>Learnitas API</h1>
         </header>
 
         <div class="vault-prose drop-cap">
@@ -34,7 +34,7 @@ const knowledgeCount = knowledge.filter((k) => !k.data.isMoc).length;
 
           <h2>GET /api/v1/notes.json</h2>
           <p>Every note in the vault, with its route and light metadata. No query parameters.</p>
-          <pre><code>curl https://learnex.example/api/v1/notes.json</code></pre>
+          <pre><code>curl https://learnitas.example/api/v1/notes.json</code></pre>
           <pre><code>{`{
   "count": 425,
   "notes": [
@@ -63,8 +63,8 @@ const knowledgeCount = knowledge.filter((k) => !k.data.isMoc).length;
             already resolved to real routes). The path mirrors the site's own URLs — take any
             page route and append <code>.json</code> under <code>/api/v1/notes</code>.
           </p>
-          <pre><code>curl https://learnex.example/api/v1/notes/languages/python.json
-curl https://learnex.example/api/v1/notes/terms/full-stack/rest-api.json</code></pre>
+          <pre><code>curl https://learnitas.example/api/v1/notes/languages/python.json
+curl https://learnitas.example/api/v1/notes/terms/full-stack/rest-api.json</code></pre>
           <pre><code>{`{
   "route": "/languages/python",
   "title": "Python",
@@ -84,7 +84,7 @@ curl https://learnex.example/api/v1/notes/terms/full-stack/rest-api.json</code><
             server function to query at request time. Good enough for "find notes about X";
             read a note's own <code>markdown</code> field via the endpoint above for real content.)
           </p>
-          <pre><code>curl "https://learnex.example/api/v1/search.json?q=rest+api"</code></pre>
+          <pre><code>curl "https://learnitas.example/api/v1/search.json?q=rest+api"</code></pre>
           <pre><code>{`{
   "query": "rest api",
   "count": 3,

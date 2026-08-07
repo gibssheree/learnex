@@ -9,8 +9,8 @@ import NavbarScene from './NavbarScene.astro';
       <span></span><span></span><span></span>
     </button>
     <a class="wordmark" href="/">
-      <img class="wordmark-logo" src="/images/learnex.png" alt="" width="37" height="44" />
-      <span class="wordmark-text">Learnex</span>
+      <img class="wordmark-logo" src="/images/learnitas.png" alt="" width="37" height="44" />
+      <span class="wordmark-text">Learnitas</span>
     </a>
 
     <div class="search-slot">
@@ -38,6 +38,36 @@ import NavbarScene from './NavbarScene.astro';
 
       <button id="random-note-btn" class="tool-btn" type="button" aria-label="Open a random note" data-tooltip="Surprise me" data-tooltip-pos="bottom">
         <PixelIcon name="dice" size={16} />
+      </button>
+
+      <!-- Study Assistant trigger — the panel it opens and the voice-mode
+           logic (mic/speaker/spinner icon swap below, data-ai-state driven
+           animation in this file's <style>) live in StudyAssistant.astro,
+           wired up by element id, not by DOM nesting. -->
+      <button
+        id="assistant-toggle-btn"
+        class="tool-btn"
+        type="button"
+        aria-label="Open Study Assistant"
+        aria-expanded="false"
+        data-tooltip="Study Assistant"
+        data-tooltip-pos="bottom"
+      >
+        <span class="assistant-fab-icon" id="fab-icon-chat">
+          <PixelIcon name="chat" size={16} />
+        </span>
+        <span class="assistant-fab-icon" id="fab-icon-mic" hidden>
+          <PixelIcon name="mic" size={16} />
+        </span>
+        <span class="assistant-fab-icon" id="fab-icon-speaker" hidden>
+          <PixelIcon name="speaker" size={16} />
+        </span>
+        <span class="assistant-fab-icon" id="fab-icon-spinner" hidden>
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2.2"
+              stroke-linecap="round" stroke-dasharray="38" stroke-dashoffset="10"/>
+          </svg>
+        </span>
       </button>
 
       <button
@@ -140,7 +170,7 @@ import NavbarScene from './NavbarScene.astro';
       <PixelIcon name="moon" size={16} class="icon-moon" />
     </button>
 
-    <a href="/about" class="tool-btn about-btn" aria-label="About Learnex" data-tooltip="About Learnex" data-tooltip-pos="bottom">
+    <a href="/about" class="tool-btn about-btn" aria-label="About Learnitas" data-tooltip="About Learnitas" data-tooltip-pos="bottom">
       <PixelIcon name="info" size={16} />
     </a>
 
@@ -161,7 +191,7 @@ import NavbarScene from './NavbarScene.astro';
     reviewDueEl.hidden = due === 0;
   }
 
-  const KEY = 'learnex-theme';
+  const KEY = 'learnitas-theme';
   const root = document.documentElement;
   const btn = document.getElementById('theme-toggle');
 
@@ -210,7 +240,7 @@ import NavbarScene from './NavbarScene.astro';
     const pagefind = await getPagefind();
     if (!pagefind) {
       resultsEl.innerHTML =
-        '<p class="search-empty">Search is available once Learnex is built for production (<code>npm run build</code>).</p>';
+        '<p class="search-empty">Search is available once Learnitas is built for production (<code>npm run build</code>).</p>';
       return;
     }
     const search = await pagefind.search(query);
@@ -275,7 +305,7 @@ import NavbarScene from './NavbarScene.astro';
 
   // ---------- Command palette trigger ----------
   document.getElementById('command-palette-btn')?.addEventListener('click', () => {
-    document.dispatchEvent(new CustomEvent('learnex:command-palette-open'));
+    document.dispatchEvent(new CustomEvent('learnitas:command-palette-open'));
   });
 
   // ---------- Popovers (bookmarks + text size) ----------
@@ -341,11 +371,11 @@ import NavbarScene from './NavbarScene.astro';
       });
     });
   }
-  document.addEventListener('learnex:bookmarks-changed', renderBookmarks);
+  document.addEventListener('learnitas:bookmarks-changed', renderBookmarks);
   renderBookmarks();
 
   // ---------- Text size ----------
-  const SIZE_KEY = 'learnex-text-size';
+  const SIZE_KEY = 'learnitas-text-size';
   document.querySelectorAll<HTMLButtonElement>('.text-size-option').forEach((opt) => {
     opt.addEventListener('click', () => {
       const size = opt.dataset.size;
@@ -361,7 +391,7 @@ import NavbarScene from './NavbarScene.astro';
   });
 
   // ---------- Retro CRT toggle ----------
-  const CRT_KEY = 'learnex-crt';
+  const CRT_KEY = 'learnitas-crt';
   const crtBtn = document.getElementById('crt-toggle-btn');
   crtBtn?.setAttribute('aria-pressed', root.getAttribute('data-crt') === 'on' ? 'true' : 'false');
   crtBtn?.addEventListener('click', () => {
@@ -380,7 +410,7 @@ import NavbarScene from './NavbarScene.astro';
   // Same shape as the CRT toggle above: flips a [data-ipad-mode] attribute
   // that global.css / AnnotationCanvas.astro key off of, persisted the same
   // way. BaseLayout.astro's inline head script restores this before paint.
-  const IPAD_KEY = 'learnex-ipad-mode';
+  const IPAD_KEY = 'learnitas-ipad-mode';
   const ipadBtn = document.getElementById('ipad-mode-toggle-btn');
   ipadBtn?.setAttribute('aria-pressed', root.getAttribute('data-ipad-mode') === 'on' ? 'true' : 'false');
   ipadBtn?.addEventListener('click', () => {
@@ -393,7 +423,7 @@ import NavbarScene from './NavbarScene.astro';
       localStorage.setItem(IPAD_KEY, 'on');
     }
     ipadBtn.setAttribute('aria-pressed', String(!on));
-    document.dispatchEvent(new CustomEvent('learnex:ipad-mode-changed', { detail: { on: !on } }));
+    document.dispatchEvent(new CustomEvent('learnitas:ipad-mode-changed', { detail: { on: !on } }));
   });
 </script>
 
@@ -641,6 +671,39 @@ import NavbarScene from './NavbarScene.astro';
     cursor: wait;
   }
 
+  /* ---------- Study Assistant trigger — icon-swap + voice-mode states ----------
+     Panel/messages/voice logic live in StudyAssistant.astro; this is just the
+     idle/listening/thinking/speaking look for the toolbar button itself. */
+  .assistant-fab-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .assistant-fab-icon[hidden] {
+    display: none !important;
+  }
+  #assistant-toggle-btn[data-ai-state='listening'],
+  #assistant-toggle-btn[data-ai-state='speaking'] {
+    animation: assistant-bob 1s ease-in-out infinite;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+  }
+  #assistant-toggle-btn[data-ai-state='thinking'] {
+    animation: assistant-think 0.85s ease-in-out infinite;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+  }
+  @keyframes assistant-bob { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.09); } }
+  @keyframes assistant-think { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.93); } }
+  #assistant-toggle-btn[data-ai-state='thinking'] #fab-icon-spinner svg {
+    animation: assistant-spin 0.85s linear infinite;
+  }
+  @keyframes assistant-spin {
+    to { transform: rotate(360deg); }
+  }
+
   .latin-motto {
     margin: 0;
     margin-left: auto;
@@ -856,7 +919,17 @@ import NavbarScene from './NavbarScene.astro';
   @media (max-width: 640px) {
     .site-header-row {
       gap: 0.5rem;
+      row-gap: 0.4rem;
       padding: 0.5rem 0.65rem;
+      /* Hiding buttons alone got tight again the moment a feature (Study
+         Assistant) added a 5th always-visible toolbar icon back in —
+         wrapping is the version of this that can't silently regress into
+         off-screen overflow just because the icon count changes later. */
+      flex-wrap: wrap;
+    }
+    .search-slot {
+      order: 1;
+      flex-basis: 100%;
     }
     .wordmark-text {
       display: none;

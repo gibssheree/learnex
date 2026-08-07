@@ -59,7 +59,7 @@ Haxe provides familiar scalar and composite types:
 Variables are declared with `var` (mutable) or `final` (immutable, preferred). The compiler infers types when initialization makes them obvious.
 
 ```haxe
-final name = "Learnex";
+final name = "Learnitas";
 var score:Int = 0;
 score += 10;
 ```
