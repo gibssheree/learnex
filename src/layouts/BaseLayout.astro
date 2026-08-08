@@ -7,7 +7,8 @@ import PixelIcon from '../components/ornaments/PixelIcon.astro';
 import StudyAssistant from '../components/StudyAssistant.astro';
 import CommandPalette from '../components/CommandPalette.astro';
 import AuthModal from '../components/AuthModal.astro';
-import ResearchPanel from '../components/ResearchPanel.astro';
+import SettingsModal from '../components/SettingsModal.astro';
+import SecondaryPanel from '../components/SecondaryPanel.astro';
 
 interface Props {
   title: string;
@@ -52,8 +53,16 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
           if (localStorage.getItem('learnitas-ipad-mode') === 'on') {
             document.documentElement.setAttribute('data-ipad-mode', 'on');
           }
-          if (localStorage.getItem('learnitas-research-panel') === 'open') {
-            document.documentElement.setAttribute('data-research-panel', 'open');
+          if (localStorage.getItem('learnitas-secondary-panel') === 'open') {
+            document.documentElement.setAttribute('data-secondary-panel', 'open');
+          }
+          var secondaryWidth = localStorage.getItem('learnitas-secondary-panel-width');
+          if (secondaryWidth) {
+            document.documentElement.style.setProperty('--secondary-panel-w', secondaryWidth + 'px');
+          }
+          var hiddenTools = localStorage.getItem('learnitas-hidden-tools');
+          if (hiddenTools) {
+            document.documentElement.setAttribute('data-hidden-tools', hiddenTools);
           }
         } catch (e) {}
       })();
@@ -96,15 +105,24 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
         <slot />
       </main>
 
-      <aside id="research-panel-aside" class="research-panel-aside">
-        <ResearchPanel />
+      <aside id="secondary-panel-aside" class="secondary-panel-aside">
+        <div
+          id="secondary-panel-resize-handle"
+          class="secondary-panel-resize-handle"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize secondary panel"
+          tabindex="0"
+        ></div>
+        <SecondaryPanel />
       </aside>
-      <div id="research-panel-backdrop" class="research-panel-backdrop"></div>
+      <div id="secondary-panel-backdrop" class="secondary-panel-backdrop"></div>
     </div>
 
     <StudyAssistant />
     <CommandPalette />
     <AuthModal />
+    <SettingsModal />
 
     <script>
       const toggle = document.getElementById('mobile-nav-toggle');
@@ -179,21 +197,21 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
       navbarShowBtn?.addEventListener('click', () => setNavbarHidden(false));
       navbarShowBtn?.setAttribute('aria-expanded', String(root.getAttribute('data-navbar') === 'hidden'));
 
-      // ---------- Research panel (right sidebar) ----------
+      // ---------- Secondary panel (right sidebar) ----------
       // Mirrors the left sidebar's collapse mechanism above, but mirrored:
       // closed/zero-width by default everywhere, opened only when a note
       // page's "Dig deeper" row (ReaderLayout.astro) dispatches the open
-      // event below — see ResearchPanel.astro for the panel's own content.
-      const RESEARCH_KEY = 'learnitas-research-panel';
-      const researchAside = document.getElementById('research-panel-aside');
-      const researchBackdrop = document.getElementById('research-panel-backdrop');
-      const researchCloseBtn = document.getElementById('research-panel-close-btn');
+      // event below — see SecondaryPanel.astro for the panel's own content.
+      const SECONDARY_KEY = 'learnitas-secondary-panel';
+      const secondaryAside = document.getElementById('secondary-panel-aside');
+      const secondaryBackdrop = document.getElementById('secondary-panel-backdrop');
+      const secondaryCloseBtn = document.getElementById('secondary-panel-close-btn');
 
-      function openResearchPanel() {
-        root.setAttribute('data-research-panel', 'open');
-        localStorage.setItem(RESEARCH_KEY, 'open');
-        researchAside?.classList.add('open');
-        researchBackdrop?.classList.add('open');
+      function openSecondaryPanel() {
+        root.setAttribute('data-secondary-panel', 'open');
+        localStorage.setItem(SECONDARY_KEY, 'open');
+        secondaryAside?.classList.add('open');
+        secondaryBackdrop?.classList.add('open');
         // Mutual exclusion with the left mobile drawer — both open at once
         // would visually overlap at narrow widths.
         close();
@@ -205,19 +223,76 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
           collapseBtn?.click();
         }
       }
-      function closeResearchPanel() {
-        root.removeAttribute('data-research-panel');
-        localStorage.removeItem(RESEARCH_KEY);
-        researchAside?.classList.remove('open');
-        researchBackdrop?.classList.remove('open');
+      function closeSecondaryPanel() {
+        root.removeAttribute('data-secondary-panel');
+        localStorage.removeItem(SECONDARY_KEY);
+        secondaryAside?.classList.remove('open');
+        secondaryBackdrop?.classList.remove('open');
       }
 
-      researchCloseBtn?.addEventListener('click', closeResearchPanel);
-      researchBackdrop?.addEventListener('click', closeResearchPanel);
+      secondaryCloseBtn?.addEventListener('click', closeSecondaryPanel);
+      secondaryBackdrop?.addEventListener('click', closeSecondaryPanel);
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && root.getAttribute('data-research-panel') === 'open') closeResearchPanel();
+        if (e.key === 'Escape' && root.getAttribute('data-secondary-panel') === 'open') closeSecondaryPanel();
       });
-      document.addEventListener('learnitas:research-panel-open', () => openResearchPanel());
+      document.addEventListener('learnitas:secondary-panel-open', () => openSecondaryPanel());
+      // Plain open/close toggle — used by the navbar's #secondary-panel-toggle-btn
+      // (Header.astro), which has no specific tab/note context to pass, unlike
+      // a note's "Dig deeper" buttons above.
+      document.addEventListener('learnitas:secondary-panel-toggle', () => {
+        if (root.getAttribute('data-secondary-panel') === 'open') closeSecondaryPanel();
+        else openSecondaryPanel();
+      });
+
+      // ---------- Secondary panel resize (desktop only — the handle is
+      // display:none below 881px, where the panel is a fixed-width overlay
+      // instead of a grid column) ----------
+      const SECONDARY_WIDTH_KEY = 'learnitas-secondary-panel-width';
+      const SECONDARY_MIN_W = 288; // 18rem, matches the clamp() floor below
+      const SECONDARY_MAX_W = 640;
+      const resizeHandle = document.getElementById('secondary-panel-resize-handle');
+
+      function applySecondaryWidth(px: number) {
+        root.style.setProperty('--secondary-panel-w', `${px}px`);
+      }
+      function currentSecondaryWidth(): number {
+        const raw = getComputedStyle(root).getPropertyValue('--secondary-panel-w');
+        return parseInt(raw, 10) || 384; // 24rem default, matches the clamp() ceiling
+      }
+      function saveSecondaryWidth() {
+        localStorage.setItem(SECONDARY_WIDTH_KEY, String(currentSecondaryWidth()));
+      }
+
+      let resizingPanel = false;
+      resizeHandle?.addEventListener('pointerdown', (e) => {
+        resizingPanel = true;
+        resizeHandle.classList.add('dragging');
+        resizeHandle.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+      resizeHandle?.addEventListener('pointermove', (e) => {
+        if (!resizingPanel) return;
+        // Handle sits on the panel's left edge — dragging it left (smaller
+        // clientX) should grow the panel, since the panel occupies
+        // everything to the right of the cursor.
+        const width = Math.min(SECONDARY_MAX_W, Math.max(SECONDARY_MIN_W, window.innerWidth - e.clientX));
+        applySecondaryWidth(width);
+      });
+      function stopSecondaryResize() {
+        if (!resizingPanel) return;
+        resizingPanel = false;
+        resizeHandle?.classList.remove('dragging');
+        saveSecondaryWidth();
+      }
+      resizeHandle?.addEventListener('pointerup', stopSecondaryResize);
+      resizeHandle?.addEventListener('pointercancel', stopSecondaryResize);
+      resizeHandle?.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        e.preventDefault();
+        const step = e.key === 'ArrowLeft' ? 16 : -16;
+        applySecondaryWidth(Math.min(SECONDARY_MAX_W, Math.max(SECONDARY_MIN_W, currentSecondaryWidth() + step)));
+        saveSecondaryWidth();
+      });
     </script>
   </body>
 </html>
@@ -382,15 +457,15 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
       visibility: hidden;
       pointer-events: none;
     }
-    :root[data-research-panel='open'] .shell {
-      grid-template-columns: 280px minmax(0, 1fr) clamp(18rem, 34vw, 24rem);
+    :root[data-secondary-panel='open'] .shell {
+      grid-template-columns: 280px minmax(0, 1fr) var(--secondary-panel-w, clamp(18rem, 34vw, 24rem));
     }
-    :root[data-sidebar='collapsed'][data-research-panel='open'] .shell {
-      grid-template-columns: 0px minmax(0, 1fr) clamp(18rem, 34vw, 24rem);
+    :root[data-sidebar='collapsed'][data-secondary-panel='open'] .shell {
+      grid-template-columns: 0px minmax(0, 1fr) var(--secondary-panel-w, clamp(18rem, 34vw, 24rem));
     }
   }
 
-  .research-panel-aside {
+  .secondary-panel-aside {
     position: sticky;
     top: var(--header-h);
     height: calc(100vh - var(--header-h));
@@ -399,21 +474,50 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
     background: var(--bg);
     transition: opacity 0.15s ease, top 0.32s ease, height 0.32s ease;
   }
-  .research-panel-backdrop {
+  .secondary-panel-backdrop {
+    display: none;
+  }
+  .secondary-panel-resize-handle {
     display: none;
   }
 
   @media (min-width: 881px) {
-    .research-panel-aside {
+    .secondary-panel-aside {
       border-left: 1px solid var(--border);
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
     }
-    :root[data-research-panel='open'] .research-panel-aside {
+    :root[data-secondary-panel='open'] .secondary-panel-aside {
       opacity: 1;
       visibility: visible;
       pointer-events: auto;
+    }
+
+    /* Drag handle straddling the panel's left border — a plain resize cursor
+       plus a brass highlight on hover/drag is enough affordance without
+       adding a visible gutter when idle. */
+    .secondary-panel-resize-handle {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: -4px;
+      width: 8px;
+      height: 100%;
+      cursor: col-resize;
+      z-index: 5;
+      touch-action: none;
+      background: transparent;
+      border: none;
+      padding: 0;
+    }
+    .secondary-panel-resize-handle:hover,
+    .secondary-panel-resize-handle.dragging {
+      background: color-mix(in srgb, var(--brass) 35%, transparent);
+    }
+    .secondary-panel-resize-handle:focus-visible {
+      outline: 2px solid var(--brass-bright);
+      outline-offset: -2px;
     }
   }
 
@@ -489,7 +593,7 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
       z-index: 50;
     }
 
-    .research-panel-aside {
+    .secondary-panel-aside {
       position: fixed;
       top: var(--header-h);
       right: 0;
@@ -505,10 +609,10 @@ const { title, description = 'Learnitas — a classical, illustrated archive for
       visibility: visible;
       pointer-events: auto;
     }
-    .research-panel-aside.open {
+    .secondary-panel-aside.open {
       transform: translateX(0);
     }
-    .research-panel-backdrop.open {
+    .secondary-panel-backdrop.open {
       display: block;
       position: fixed;
       inset: var(--header-h) 0 0 0;

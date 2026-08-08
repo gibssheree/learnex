@@ -1,0 +1,751 @@
+---
+// Browser-style secondary panel: one thin tab strip, one thin URL bar,
+// content below — no fixed "sections". References and Ask AI results are
+// just tabs, exactly like web pages are tabs; everything is closable and
+// more tabs can be added with +.
+---
+
+<div class="secondary-panel-shell" data-pagefind-ignore>
+  <div class="sp-tabstrip">
+    <div id="sp-tabs" class="sp-tabs" role="tablist" aria-label="Secondary panel tabs"></div>
+    <button id="sp-tab-add" class="sp-tab-add" type="button" aria-label="New tab">+</button>
+    <button id="secondary-panel-close-btn" class="sp-panel-close" type="button" aria-label="Close secondary panel">×</button>
+  </div>
+
+  <form id="sp-urlbar-form" class="sp-urlbar">
+    <input id="sp-url-input" class="sp-url-input" type="text" placeholder="Enter a URL or search…" autocomplete="off" spellcheck="false" />
+    <a id="sp-open-external" class="sp-open-external" target="_blank" rel="noopener noreferrer" aria-label="Open in a real browser tab" hidden>↗</a>
+  </form>
+
+  <div id="sp-content" class="sp-content"></div>
+</div>
+
+<script>
+  interface Source { title: string; url: string; summary: string }
+  interface ReferencesResult {
+    answer: string;
+    sources: Source[];
+    searchQueries: string[];
+    searchSuggestionsHtml: string | null;
+  }
+  interface OpenDetail {
+    tab: 'references' | 'ask-ai' | 'browser';
+    route: string;
+    title: string;
+    summary?: string;
+  }
+
+  type TabKind = 'web' | 'references' | 'ask-ai';
+
+  interface PanelTab {
+    id: string;
+    kind: TabKind;
+    title: string;
+    url: string | null;
+    /** Note route (or search key) a references/ask-ai tab was created for —
+     * used to reuse an existing tab instead of stacking duplicates. */
+    route: string | null;
+    rendered: boolean;
+    contentEl: HTMLElement;
+  }
+
+  const tabsEl = document.getElementById('sp-tabs');
+  const addBtn = document.getElementById('sp-tab-add');
+  const contentEl = document.getElementById('sp-content');
+  const urlForm = document.getElementById('sp-urlbar-form') as HTMLFormElement | null;
+  const urlInput = document.getElementById('sp-url-input') as HTMLInputElement | null;
+  const openExternal = document.getElementById('sp-open-external') as HTMLAnchorElement | null;
+  if (!tabsEl || !contentEl) throw new Error('SecondaryPanel: missing DOM nodes');
+
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  function hostnameOf(url: string): string {
+    try {
+      return new URL(url).hostname.replace(/^www\./, '');
+    } catch {
+      return url;
+    }
+  }
+
+  // ── Tab model ───────────────────────────────────────────────────────────
+
+  let tabNum = 1;
+  const tabs: PanelTab[] = [];
+  let activeTabId = '';
+
+  function createTab(kind: TabKind, title: string): PanelTab {
+    const pane = document.createElement('div');
+    pane.className = 'sp-pane';
+    pane.hidden = true;
+    if (kind === 'web') {
+      pane.innerHTML = '<p class="sp-empty">Enter a URL or search above.</p>';
+    }
+    contentEl!.appendChild(pane);
+    const tab: PanelTab = {
+      id: `sp-${tabNum++}`,
+      kind,
+      title,
+      url: null,
+      route: null,
+      rendered: false,
+      contentEl: pane,
+    };
+    tabs.push(tab);
+    return tab;
+  }
+
+  function activeTab(): PanelTab | undefined {
+    return tabs.find((t) => t.id === activeTabId);
+  }
+
+  function setActiveTab(id: string) {
+    activeTabId = id;
+    tabs.forEach((t) => {
+      t.contentEl.hidden = t.id !== id;
+    });
+    syncUrlbar();
+    renderTabstrip();
+  }
+
+  function syncUrlbar() {
+    const t = activeTab();
+    if (urlInput) urlInput.value = t?.url ?? '';
+    if (openExternal) {
+      if (t?.kind === 'web' && t.url) {
+        openExternal.href = t.url;
+        openExternal.hidden = false;
+      } else {
+        openExternal.hidden = true;
+      }
+    }
+  }
+
+  function closeTab(id: string) {
+    const idx = tabs.findIndex((t) => t.id === id);
+    if (idx === -1) return;
+    tabs[idx].contentEl.remove();
+    tabs.splice(idx, 1);
+    if (tabs.length === 0) {
+      // Never leave an empty strip — same behavior as any real browser.
+      const fresh = createTab('web', 'New Tab');
+      setActiveTab(fresh.id);
+      return;
+    }
+    if (activeTabId === id) {
+      setActiveTab(tabs[Math.max(0, idx - 1)].id);
+    } else {
+      renderTabstrip();
+    }
+  }
+
+  function renderTabstrip() {
+    tabsEl!.innerHTML = '';
+    tabs.forEach((t) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'sp-tab';
+      chip.setAttribute('role', 'tab');
+      chip.setAttribute('aria-selected', String(t.id === activeTabId));
+      chip.title = t.title;
+      chip.innerHTML =
+        `<span class="sp-tab-label">${esc(t.title)}</span>` +
+        '<span class="sp-tab-close" aria-label="Close tab">×</span>';
+      chip.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('.sp-tab-close')) closeTab(t.id);
+        else setActiveTab(t.id);
+      });
+      tabsEl!.appendChild(chip);
+    });
+  }
+
+  addBtn?.addEventListener('click', () => {
+    const tab = createTab('web', 'New Tab');
+    setActiveTab(tab.id);
+    urlInput?.focus();
+  });
+
+  // Start with a single empty tab, like a fresh browser window.
+  setActiveTab(createTab('web', 'New Tab').id);
+
+  // closeBtn (#secondary-panel-close-btn) is wired by BaseLayout.astro,
+  // which owns openSecondaryPanel()/closeSecondaryPanel() — single source
+  // of truth for panel visibility, same convention as before this redesign.
+
+  // ── Web navigation ──────────────────────────────────────────────────────
+
+  const BLOCKED_PREFIXES = ['chatgpt.com', 'chat.openai.com', 'claude.ai', 'perplexity.ai'];
+
+  function isUrlShaped(input: string): boolean {
+    const t = input.trim();
+    if (/^https?:\/\//i.test(t)) return true;
+    return !t.includes(' ') && /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/.*)?$/i.test(t);
+  }
+
+  function normalizeUrl(input: string): string {
+    return /^https?:\/\//i.test(input) ? input : `https://${input}`;
+  }
+
+  function isBlocked(url: string): boolean {
+    try {
+      const u = new URL(url);
+      const host = u.hostname.replace(/^www\./, '');
+      return BLOCKED_PREFIXES.some((b) => `${host}${u.pathname}`.startsWith(b) || host === b);
+    } catch {
+      return false;
+    }
+  }
+
+  function navigateTab(tab: PanelTab, url: string) {
+    tab.kind = 'web';
+    tab.url = url;
+    tab.title = hostnameOf(url);
+    tab.contentEl.innerHTML = '';
+
+    if (isBlocked(url)) {
+      tab.contentEl.innerHTML =
+        '<p class="sp-empty">This site won\'t allow embedding — opened in a real browser tab instead.</p>';
+      window.open(url, '_blank', 'noopener');
+    } else {
+      const frame = document.createElement('iframe');
+      frame.className = 'sp-frame';
+      frame.title = tab.title;
+      frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
+      frame.setAttribute('referrerpolicy', 'no-referrer');
+      frame.src = url;
+      tab.contentEl.appendChild(frame);
+    }
+    syncUrlbar();
+    renderTabstrip();
+  }
+
+  urlForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const raw = urlInput?.value.trim();
+    if (!raw) return;
+
+    if (isUrlShaped(raw)) {
+      let tab = activeTab();
+      // Don't clobber a tab holding fetched References/Ask AI results —
+      // those cost an API call; open the page in a fresh tab instead.
+      if (!tab || tab.kind !== 'web') {
+        tab = createTab('web', 'New Tab');
+        setActiveTab(tab.id);
+      }
+      navigateTab(tab, normalizeUrl(raw));
+      return;
+    }
+
+    // Bare phrase — a grounded web search (same backend as a note's
+    // "Search the web") opened as its own tab, since Google's SERP can't
+    // reliably be iframed.
+    const tab = createTab('references', raw);
+    tab.route = `search:${raw}`;
+    setActiveTab(tab.id);
+    renderReferencesInto(tab, { route: tab.route, title: raw });
+  });
+
+  // ── Shared fetch/cache (References + Ask AI) ────────────────────────────
+  // Keyed by route so re-opening the same note's tab (or asking AI after
+  // searching) reuses one Gemini call instead of billing twice.
+
+  let cache: { route: string; result: ReferencesResult } | null = null;
+  let inFlight: Promise<ReferencesResult> | null = null;
+  let inFlightRoute: string | null = null;
+
+  async function ensureResult(detail: { route: string; title: string; summary?: string }): Promise<ReferencesResult> {
+    if (cache && cache.route === detail.route) return cache.result;
+    if (inFlight && inFlightRoute === detail.route) return inFlight;
+    inFlightRoute = detail.route;
+    inFlight = fetch('/api/references', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: detail.title, summary: detail.summary }),
+    })
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error ?? 'Something went wrong.');
+        return data as ReferencesResult;
+      })
+      .then((result) => {
+        cache = { route: detail.route, result };
+        return result;
+      })
+      .finally(() => {
+        inFlight = null;
+        inFlightRoute = null;
+      });
+    return inFlight;
+  }
+
+  function sourceMarkdown(s: Source): string {
+    return s.summary ? `> ${s.summary}\n— [${s.title}](${s.url})` : `— [${s.title}](${s.url})`;
+  }
+
+  async function copyMarkdown(text: string, btn: HTMLButtonElement) {
+    const original = btn.textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.textContent = 'Copied!';
+    } catch {
+      btn.textContent = 'Copy failed';
+    }
+    btn.disabled = true;
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.disabled = false;
+    }, 1500);
+  }
+
+  function renderReferences(container: HTMLElement, title: string, result: ReferencesResult) {
+    container.innerHTML = '';
+
+    if (result.sources.length === 0) {
+      const p = document.createElement('p');
+      p.className = 'sp-empty';
+      p.textContent = result.answer || 'No sources could be attributed for this search.';
+      container.appendChild(p);
+      return;
+    }
+
+    const list = document.createElement('div');
+    list.className = 'sp-source-list';
+    for (const source of result.sources) {
+      const card = document.createElement('article');
+      card.className = 'sp-source-card';
+      card.innerHTML = `
+        <a class="sp-source-title" href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title)}</a>
+        <span class="sp-source-host">${esc(hostnameOf(source.url))}</span>
+        <p class="sp-source-summary">${esc(source.summary || 'No summary available for this source.')}</p>
+        <button type="button" class="sp-copy-btn" data-copy="source">Copy as Markdown</button>
+      `;
+      card.querySelector<HTMLButtonElement>('[data-copy="source"]')?.addEventListener('click', (e) => {
+        copyMarkdown(sourceMarkdown(source), e.currentTarget as HTMLButtonElement);
+      });
+      list.appendChild(card);
+    }
+    container.appendChild(list);
+
+    if (result.searchSuggestionsHtml) {
+      const widget = document.createElement('div');
+      widget.className = 'sp-search-widget';
+      // Google's own required "Search Suggestions" widget, injected verbatim
+      // per their grounding terms of service — not sanitized/rewritten.
+      widget.innerHTML = result.searchSuggestionsHtml;
+      container.appendChild(widget);
+    }
+
+    const copyAllBtn = document.createElement('button');
+    copyAllBtn.type = 'button';
+    copyAllBtn.className = 'sp-copy-btn sp-copy-all-btn';
+    copyAllBtn.textContent = 'Copy all as Markdown';
+    copyAllBtn.addEventListener('click', () => {
+      const md = `## Sources: ${title}\n\n${result.sources.map(sourceMarkdown).join('\n\n')}`;
+      copyMarkdown(md, copyAllBtn);
+    });
+    container.appendChild(copyAllBtn);
+  }
+
+  function renderAskAi(container: HTMLElement, title: string, result: ReferencesResult) {
+    container.innerHTML = '';
+
+    const geminiCard = document.createElement('article');
+    geminiCard.className = 'sp-provider-card';
+    const answerHtml = esc(result.answer || 'No answer came back.').replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>');
+    const citations = result.sources
+      .slice(0, 6)
+      .map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a></li>`)
+      .join('');
+    geminiCard.innerHTML = `
+      <p class="sp-provider-name">Gemini <span class="sp-provider-tag">live, web search</span></p>
+      <div class="sp-provider-answer"><p>${answerHtml}</p></div>
+      ${citations ? `<ul class="sp-provider-citations">${citations}</ul>` : ''}
+      <button type="button" class="sp-copy-btn" data-copy="gemini">Copy as Markdown</button>
+    `;
+    geminiCard.querySelector<HTMLButtonElement>('[data-copy="gemini"]')?.addEventListener('click', (e) => {
+      const sourceLines = result.sources.map((s) => `- [${s.title}](${s.url})`).join('\n');
+      const md = `**${title}** — via Gemini (web search)\n\n${result.answer}${sourceLines ? `\n\nSources:\n${sourceLines}` : ''}`;
+      copyMarkdown(md, e.currentTarget as HTMLButtonElement);
+    });
+    container.appendChild(geminiCard);
+
+    const compareLabel = document.createElement('p');
+    compareLabel.className = 'sp-compare-label';
+    compareLabel.textContent = 'Compare with';
+    container.appendChild(compareLabel);
+
+    const providerQuery = `Explain: ${title}`;
+    const row = document.createElement('div');
+    row.className = 'sp-provider-row';
+    row.innerHTML = `
+      <button type="button" class="sp-provider-btn" data-provider="claude">Claude</button>
+      <a class="sp-provider-btn" href="https://chatgpt.com/?q=${encodeURIComponent(providerQuery)}" target="_blank" rel="noopener noreferrer">ChatGPT</a>
+      <a class="sp-provider-btn" href="https://www.perplexity.ai/search?q=${encodeURIComponent(providerQuery)}" target="_blank" rel="noopener noreferrer">Perplexity</a>
+    `;
+    container.appendChild(row);
+
+    // Claude removed its query-prefill URL in Oct 2025 — no public deep-link
+    // exists anymore, so the closest honest equivalent is: copy the question,
+    // then open a blank new chat one paste away from working.
+    row.querySelector('[data-provider="claude"]')?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(providerQuery);
+      } catch {
+        /* clipboard is a bonus, not blocking */
+      }
+      window.open('https://claude.ai/new', '_blank', 'noopener');
+    });
+  }
+
+  async function renderReferencesInto(tab: PanelTab, detail: { route: string; title: string; summary?: string }) {
+    tab.contentEl.innerHTML = '<p class="sp-loading">Searching the web…</p>';
+    try {
+      const result = await ensureResult(detail);
+      renderReferences(tab.contentEl, detail.title, result);
+      tab.rendered = true;
+    } catch (err) {
+      tab.contentEl.innerHTML = `<p class="sp-empty sp-error">${esc(err instanceof Error ? err.message : 'Something went wrong.')}</p>`;
+    }
+  }
+
+  async function renderAskAiInto(tab: PanelTab, detail: { route: string; title: string; summary?: string }) {
+    tab.contentEl.innerHTML = '<p class="sp-loading">Asking Gemini…</p>';
+    try {
+      const result = await ensureResult(detail);
+      renderAskAi(tab.contentEl, detail.title, result);
+      tab.rendered = true;
+    } catch (err) {
+      tab.contentEl.innerHTML = `<p class="sp-empty sp-error">${esc(err instanceof Error ? err.message : 'Something went wrong.')}</p>`;
+    }
+  }
+
+  // ── "Dig deeper" entry points ───────────────────────────────────────────
+  // A note's Search-the-web / Ask-Gemini buttons open (or re-focus) a tab
+  // for that note, rather than switching a fixed section.
+
+  document.addEventListener('learnitas:secondary-panel-open', ((e: Event) => {
+    const detail = (e as CustomEvent<OpenDetail>).detail;
+    if (!detail || !detail.title) return;
+    if (detail.tab !== 'references' && detail.tab !== 'ask-ai') return;
+
+    const kind: TabKind = detail.tab;
+    let tab = tabs.find((t) => t.kind === kind && t.route === detail.route);
+    if (!tab) {
+      tab = createTab(kind, kind === 'references' ? `${detail.title} · Sources` : `${detail.title} · AI`);
+      tab.route = detail.route;
+    }
+    setActiveTab(tab.id);
+    if (!tab.rendered) {
+      if (kind === 'references') renderReferencesInto(tab, detail);
+      else renderAskAiInto(tab, detail);
+    }
+  }) as EventListener);
+</script>
+
+<style is:global>
+  /* is:global on purpose: nearly all of this panel's DOM (tabs, panes,
+     result cards) is created at runtime by its script, so Astro's scoped
+     cid attributes would never land on those elements. All class names are
+     sp-/secondary- prefixed to keep the global footprint collision-free. */
+
+  .secondary-panel-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  /* ── Thin browser-style tab strip ── */
+  .sp-tabstrip {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.25rem 0.35rem 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-inset);
+    flex-shrink: 0;
+    min-height: 30px;
+  }
+  .sp-tabs {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.15rem;
+    min-width: 0;
+    flex: 1;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .sp-tabs::-webkit-scrollbar { display: none; }
+  .sp-tab {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+    max-width: 10rem;
+    flex-shrink: 1;
+    padding: 0.28rem 0.5rem;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 5px 5px 0 0;
+    background: transparent;
+    color: var(--ink-faint);
+    font-family: var(--font-body);
+    font-size: 0.72rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .sp-tab:hover { color: var(--ink); background: var(--bg-elevated); }
+  .sp-tab[aria-selected='true'] {
+    background: var(--bg);
+    color: var(--ink);
+    border-color: var(--border);
+    position: relative;
+    top: 1px;
+  }
+  .sp-tab-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .sp-tab-close {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    line-height: 1;
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+  }
+  .sp-tab-close:hover { color: var(--accent); background: var(--bg-inset); }
+  .sp-tab-add {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+    margin-bottom: 0.2rem;
+  }
+  .sp-tab-add:hover { color: var(--brass); background: var(--bg-elevated); }
+  .sp-panel-close {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    margin-bottom: 0.2rem;
+  }
+  .sp-panel-close:hover { color: var(--accent); background: var(--bg-elevated); }
+
+  /* ── Thin URL bar ── */
+  .sp-urlbar {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .sp-url-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.32rem 0.6rem;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+  }
+  .sp-url-input:focus { outline: 2px solid var(--brass-bright); outline-offset: 1px; }
+  .sp-open-external {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--brass);
+    text-decoration: none;
+    font-size: 0.85rem;
+  }
+  .sp-open-external:hover { background: var(--bg-inset); }
+
+  /* ── Content ── */
+  .sp-content {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .sp-pane {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .sp-pane[hidden] { display: none; }
+  .sp-frame {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border: none;
+    background: var(--bg-elevated);
+  }
+
+  .sp-empty, .sp-loading {
+    color: var(--ink-faint);
+    font-size: 0.85rem;
+    text-align: center;
+    margin: 1.5rem auto;
+    max-width: 20rem;
+    padding: 0 1rem;
+  }
+  .sp-error { color: var(--accent); }
+
+  /* ── References results ── */
+  .sp-source-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    padding: 1rem;
+  }
+  .sp-source-card {
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+  }
+  .sp-source-title {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 0.92rem;
+    color: var(--ink);
+    text-decoration: none;
+    margin-bottom: 0.15rem;
+  }
+  .sp-source-title:hover { color: var(--accent); }
+  .sp-source-host {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--brass);
+    margin-bottom: 0.45rem;
+  }
+  .sp-source-summary {
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+    margin: 0 0 0.6rem;
+    line-height: 1.5;
+  }
+
+  .sp-copy-btn {
+    padding: 0.3rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink-faint);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    cursor: pointer;
+  }
+  .sp-copy-btn:hover { border-color: var(--brass); color: var(--brass); }
+  .sp-copy-btn:disabled { opacity: 0.6; cursor: default; }
+  .sp-copy-all-btn {
+    display: block;
+    margin: 0 auto 1rem;
+  }
+
+  .sp-search-widget {
+    margin: 0 1rem 1rem;
+    font-size: 0.78rem;
+  }
+
+  /* ── Ask AI results ── */
+  .sp-provider-card {
+    margin: 1rem 1rem 0.75rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+  }
+  .sp-provider-name {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    color: var(--ink);
+    margin: 0 0 0.5rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .sp-provider-tag {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--brass-soft);
+  }
+  .sp-provider-answer {
+    font-size: 0.87rem;
+    color: var(--ink-muted);
+    line-height: 1.6;
+    margin-bottom: 0.7rem;
+  }
+  .sp-provider-answer p:first-child { margin-top: 0; }
+  .sp-provider-citations {
+    list-style: none;
+    margin: 0 0 0.75rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+  }
+  .sp-provider-citations a { color: var(--ink-faint); }
+  .sp-provider-citations a:hover { color: var(--accent); }
+
+  .sp-compare-label {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 1rem 0.5rem;
+  }
+  .sp-provider-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 1rem 1rem;
+  }
+  .sp-provider-btn {
+    padding: 0.5rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ink-muted);
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .sp-provider-btn:hover { border-color: var(--brass); color: var(--brass); }
+</style>

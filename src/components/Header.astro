@@ -1,6 +1,5 @@
 ---
 import PixelIcon from './ornaments/PixelIcon.astro';
-import NavbarScene from './NavbarScene.astro';
 ---
 
 <header class="site-header">
@@ -27,11 +26,11 @@ import NavbarScene from './NavbarScene.astro';
     </div>
 
     <div class="toolbar-group">
-      <a href="/graph" class="tool-btn" aria-label="Knowledge graph" data-tooltip="Knowledge graph" data-tooltip-pos="bottom">
+      <a id="graph-link-btn" href="/graph" class="tool-btn" aria-label="Knowledge graph" data-tooltip="Knowledge graph" data-tooltip-pos="bottom">
         <PixelIcon name="graph" size={16} />
       </a>
 
-      <a href="/review" class="tool-btn" aria-label="Flashcard review" data-tooltip="Review flashcards" data-tooltip-pos="bottom">
+      <a id="review-link-btn" href="/review" class="tool-btn" aria-label="Flashcard review" data-tooltip="Review flashcards" data-tooltip-pos="bottom">
         <PixelIcon name="check" size={16} />
         <span id="review-due-count" class="tool-badge" hidden>0</span>
       </a>
@@ -154,6 +153,21 @@ import NavbarScene from './NavbarScene.astro';
       >
         <PixelIcon name="chevronUp" size={14} />
       </button>
+
+      <!-- Trigger only — the modal it opens lives in SettingsModal.astro,
+           wired up by element id, same pattern as #assistant-toggle-btn and
+           #auth-toggle-btn above. -->
+      <button
+        id="settings-toggle-btn"
+        class="tool-btn"
+        type="button"
+        aria-label="Settings"
+        aria-expanded="false"
+        data-tooltip="Settings"
+        data-tooltip-pos="bottom"
+      >
+        <PixelIcon name="gear" size={16} />
+      </button>
     </div>
 
     <p class="latin-motto" data-tooltip="Dare to know" data-tooltip-pos="bottom">Sapere Aude</p>
@@ -186,6 +200,22 @@ import NavbarScene from './NavbarScene.astro';
       data-tooltip="Log in"
       data-tooltip-pos="bottom"
     >Log in</button>
+
+    <!-- Toggles the secondary panel on the right — dispatches to
+         BaseLayout.astro's open/closeSecondaryPanel via a custom event,
+         same bridge #command-palette-btn already uses to reach a handler
+         defined in a different file's <script>. -->
+    <button
+      id="secondary-panel-toggle-btn"
+      class="tool-btn"
+      type="button"
+      aria-label="Toggle secondary panel"
+      aria-pressed="false"
+      data-tooltip="Toggle secondary panel"
+      data-tooltip-pos="bottom"
+    >
+      <PixelIcon name="sidebar" size={16} />
+    </button>
 
     <!-- Mobile-only: everything in .toolbar-group is hidden at <=640px (see
          that media query below) in favor of this one button. Its panel
@@ -235,11 +265,12 @@ import NavbarScene from './NavbarScene.astro';
         <button type="button" class="more-tools-row" data-delegate="navbar-hide-btn">
           <PixelIcon name="chevronUp" size={14} /> <span>Hide navbar</span>
         </button>
+        <button type="button" class="more-tools-row" data-delegate="settings-toggle-btn">
+          <PixelIcon name="gear" size={14} /> <span>Settings</span>
+        </button>
         <p class="more-tools-motto">Sapere Aude</p>
       </div>
     </div>
-
-    <NavbarScene />
   </div>
 </header>
 
@@ -485,6 +516,26 @@ import NavbarScene from './NavbarScene.astro';
       localStorage.setItem(CRT_KEY, 'on');
     }
     crtBtn.setAttribute('aria-pressed', String(!on));
+  });
+
+  // ---------- Secondary panel toggle (navbar) ----------
+  // Open/closeSecondaryPanel live in BaseLayout.astro's own <script> — a
+  // separate module from this one — so this reaches them the same way
+  // #command-palette-btn reaches CommandPalette.astro: a custom event.
+  // A MutationObserver (not a handful of specific event listeners) keeps
+  // aria-pressed accurate regardless of which of the panel's several close
+  // paths fired (X button, backdrop click, Escape, or this button itself).
+  const secondaryToggleBtn = document.getElementById('secondary-panel-toggle-btn');
+  function syncSecondaryToggleBtn() {
+    secondaryToggleBtn?.setAttribute('aria-pressed', String(root.getAttribute('data-secondary-panel') === 'open'));
+  }
+  syncSecondaryToggleBtn();
+  secondaryToggleBtn?.addEventListener('click', () => {
+    document.dispatchEvent(new CustomEvent('learnitas:secondary-panel-toggle'));
+  });
+  new MutationObserver(syncSecondaryToggleBtn).observe(root, {
+    attributes: true,
+    attributeFilter: ['data-secondary-panel'],
   });
 
   // ---------- iPad mode toggle ----------
@@ -807,7 +858,8 @@ import NavbarScene from './NavbarScene.astro';
     color: var(--ink);
   }
   #crt-toggle-btn[aria-pressed='true'],
-  #ipad-mode-toggle-btn[aria-pressed='true'] {
+  #ipad-mode-toggle-btn[aria-pressed='true'],
+  #secondary-panel-toggle-btn[aria-pressed='true'] {
     background: var(--accent);
     color: var(--accent-ink);
     border-color: var(--accent);
@@ -1063,6 +1115,24 @@ import NavbarScene from './NavbarScene.astro';
      about link, more-tools button — is light enough that this was never
      the overflow risk the old many-icon row was; flex-wrap stays on
      anyway, as a backstop against anything added here later. */
+  /* ---------- Toolbar item visibility (Settings > Toolbar) ----------
+     `data-hidden-tools` on <html> holds a space-separated id list, restored
+     from localStorage before paint (see BaseLayout.astro's inline head
+     script) — CSS's `~=` word-match means no per-element JS is needed to
+     avoid a hidden-then-shown flash. One rule per customizable tool; the
+     ids matched here are defined in the toolbar-group markup above. */
+  :global(:root[data-hidden-tools~='graph-link-btn'] #graph-link-btn),
+  :global(:root[data-hidden-tools~='review-link-btn'] #review-link-btn),
+  :global(:root[data-hidden-tools~='random-note-btn'] #random-note-btn),
+  :global(:root[data-hidden-tools~='assistant-toggle-btn'] #assistant-toggle-btn),
+  :global(:root[data-hidden-tools~='command-palette-btn'] #command-palette-btn),
+  :global(:root[data-hidden-tools~='bookmarks-btn'] .tool-popover-wrap:has(#bookmarks-btn)),
+  :global(:root[data-hidden-tools~='text-size-btn'] .tool-popover-wrap:has(#text-size-btn)),
+  :global(:root[data-hidden-tools~='crt-toggle-btn'] #crt-toggle-btn),
+  :global(:root[data-hidden-tools~='ipad-mode-toggle-btn'] #ipad-mode-toggle-btn) {
+    display: none !important;
+  }
+
   @media (max-width: 640px) {
     .site-header-row {
       gap: 0.5rem;

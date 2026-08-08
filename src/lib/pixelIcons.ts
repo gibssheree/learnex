@@ -310,6 +310,16 @@ export const PIXEL_ICONS: Record<string, string[]> = {
     '00111100',
     '00011000',
   ],
+  sidebar: [
+    '00000000',
+    '01111110',
+    '01000110',
+    '01000110',
+    '01000110',
+    '01000110',
+    '01111110',
+    '00000000',
+  ],
 };
 
 export type PixelIconName = keyof typeof PIXEL_ICONS;

@@ -1,0 +1,547 @@
+---
+import PixelIcon from './ornaments/PixelIcon.astro';
+import { PERSONA_LABELS } from '../lib/ai-personas';
+
+const TOOLBAR_ITEMS = [
+  { id: 'graph-link-btn', label: 'Knowledge graph' },
+  { id: 'review-link-btn', label: 'Flashcard review' },
+  { id: 'random-note-btn', label: 'Random note' },
+  { id: 'assistant-toggle-btn', label: 'Study Assistant' },
+  { id: 'command-palette-btn', label: 'Command palette' },
+  { id: 'bookmarks-btn', label: 'Bookmarks' },
+  { id: 'text-size-btn', label: 'Text size' },
+  { id: 'crt-toggle-btn', label: 'Retro CRT mode' },
+  { id: 'ipad-mode-toggle-btn', label: 'iPad mode' },
+] as const;
+---
+
+<div id="settings-modal-overlay" class="settings-overlay" hidden data-pagefind-ignore>
+  <div class="settings-box" role="dialog" aria-modal="true" aria-label="Settings">
+    <header class="settings-header">
+      <p class="font-pixel settings-title">Settings</p>
+      <button id="settings-modal-close-btn" class="settings-close" type="button" aria-label="Close settings">×</button>
+    </header>
+
+    <div class="settings-body">
+      <nav class="settings-tabs" role="tablist" aria-label="Settings sections">
+        <button type="button" class="settings-tab" data-tab="general" role="tab" aria-selected="true">General</button>
+        <button type="button" class="settings-tab" data-tab="accounts" role="tab" aria-selected="false">Accounts</button>
+        <button type="button" class="settings-tab" data-tab="features" role="tab" aria-selected="false">Features</button>
+        <button type="button" class="settings-tab" data-tab="toolbar" role="tab" aria-selected="false">Toolbar</button>
+        <button type="button" class="settings-tab" data-tab="command-palette" role="tab" aria-selected="false">Command Palette</button>
+        <button type="button" class="settings-tab" data-tab="reading" role="tab" aria-selected="false">Reading</button>
+      </nav>
+
+      <div class="settings-panes">
+        <div id="settings-pane-general" class="settings-pane">
+          <p class="settings-pane-desc">Site-wide preferences.</p>
+          <button type="button" class="settings-row" data-delegate="theme-toggle">
+            <PixelIcon name="sun" size={14} /> <span>Reading mode (cream / dark)</span>
+          </button>
+          <button type="button" class="settings-row" data-delegate="navbar-hide-btn">
+            <PixelIcon name="chevronUp" size={14} /> <span>Hide navbar</span>
+          </button>
+          <div class="settings-divider"></div>
+          <button type="button" id="settings-reset-btn" class="settings-danger-btn">Reset all local preferences</button>
+          <p class="settings-pane-note">
+            Clears theme, text size, CRT/iPad mode, toolbar visibility, and panel-size preferences stored in this
+            browser, then reloads. Your account, bookmarks, and progress are not affected.
+          </p>
+        </div>
+
+        <div id="settings-pane-accounts" class="settings-pane" hidden>
+          <div id="settings-account-signed-out" class="settings-account-block">
+            <p class="settings-pane-desc">
+              Sign in to sync bookmarks, spaced-repetition progress, and Study Assistant history across devices.
+            </p>
+            <button type="button" class="settings-row" data-delegate="auth-toggle-btn">
+              <span>Log in / Sign up</span>
+            </button>
+          </div>
+          <div id="settings-account-signed-in" class="settings-account-block" hidden>
+            <p class="settings-pane-desc">Signed in as <strong id="settings-account-email"></strong>.</p>
+            <button type="button" id="settings-signout-btn" class="settings-row">
+              <span>Log out</span>
+            </button>
+          </div>
+          <div class="settings-divider"></div>
+          <label class="settings-field">
+            <span>Study Assistant persona</span>
+            <select id="settings-persona-select" class="settings-select">
+              {Object.entries(PERSONA_LABELS).map(([value, label]) => <option value={value}>{label}</option>)}
+            </select>
+          </label>
+          <p class="settings-pane-note">Changes how the Study Assistant explains things to you — applies immediately.</p>
+        </div>
+
+        <div id="settings-pane-features" class="settings-pane" hidden>
+          <p class="settings-pane-desc">Quick links to everything Learnitas can do.</p>
+          <a href="/graph" class="settings-row">
+            <PixelIcon name="graph" size={14} /> <span>Knowledge graph</span>
+          </a>
+          <a href="/review" class="settings-row">
+            <PixelIcon name="check" size={14} /> <span>Flashcard review</span>
+          </a>
+          <button type="button" class="settings-row" data-delegate="random-note-btn">
+            <PixelIcon name="dice" size={14} /> <span>Random note</span>
+          </button>
+          <button type="button" class="settings-row" data-delegate="assistant-toggle-btn">
+            <PixelIcon name="chat" size={14} /> <span>Study Assistant</span>
+          </button>
+          <button type="button" class="settings-row" data-delegate="bookmarks-btn">
+            <PixelIcon name="star" size={14} /> <span>Bookmarks</span>
+          </button>
+          <button type="button" class="settings-row" data-delegate="secondary-panel-toggle-btn">
+            <PixelIcon name="book" size={14} /> <span>Secondary panel</span>
+          </button>
+        </div>
+
+        <div id="settings-pane-toolbar" class="settings-pane" hidden>
+          <p class="settings-pane-desc">Hide toolbar icons you don't use. Applies immediately, remembered on this device.</p>
+          <div class="settings-toolbar-list">
+            {TOOLBAR_ITEMS.map((item) => (
+              <label class="settings-checkbox-row">
+                <input type="checkbox" class="settings-toolbar-checkbox" data-tool-id={item.id} checked />
+                <span>{item.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div id="settings-pane-command-palette" class="settings-pane" hidden>
+          <p class="settings-pane-desc">Search notes or run a command from anywhere.</p>
+          <button type="button" class="settings-row" data-delegate="command-palette-btn">
+            <span>Open command palette</span>
+            <kbd class="settings-kbd">⌘K</kbd>
+          </button>
+          <p class="settings-pane-note">
+            Works from any page — press <kbd class="settings-kbd">Ctrl</kbd>/<kbd class="settings-kbd">Cmd</kbd> +
+            <kbd class="settings-kbd">K</kbd>, no click needed.
+          </p>
+        </div>
+
+        <div id="settings-pane-reading" class="settings-pane" hidden>
+          <p class="settings-pane-desc">Text size</p>
+          <div class="settings-chip-row">
+            <button type="button" class="settings-chip" data-delegate-size="sm">Small</button>
+            <button type="button" class="settings-chip" data-delegate-size="md">Medium</button>
+            <button type="button" class="settings-chip" data-delegate-size="lg">Large</button>
+          </div>
+          <div class="settings-divider"></div>
+          <button type="button" class="settings-row" data-delegate="crt-toggle-btn">
+            <PixelIcon name="tv" size={14} /> <span>Retro CRT mode</span>
+          </button>
+          <button type="button" class="settings-row" data-delegate="ipad-mode-toggle-btn">
+            <PixelIcon name="tablet" size={14} /> <span>iPad mode</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { isPersona } from '../lib/ai-personas';
+  import { getCurrentEmail, signOut } from '../lib/auth-client';
+
+  const overlay = document.getElementById('settings-modal-overlay');
+  const box = overlay?.querySelector('.settings-box');
+  const openBtn = document.getElementById('settings-toggle-btn') as HTMLButtonElement | null;
+  const closeBtn = document.getElementById('settings-modal-close-btn');
+  if (!overlay || !box) throw new Error('SettingsModal: missing DOM nodes');
+
+  function openModal() {
+    overlay!.hidden = false;
+    openBtn?.setAttribute('aria-expanded', 'true');
+  }
+  function closeModal() {
+    overlay!.hidden = true;
+    openBtn?.setAttribute('aria-expanded', 'false');
+  }
+
+  openBtn?.addEventListener('click', openModal);
+  closeBtn?.addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !overlay!.hidden) closeModal();
+  });
+
+  // ---------- Tabs ----------
+  const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.settings-tab'));
+  const panes: Record<string, HTMLElement | null> = {
+    general: document.getElementById('settings-pane-general'),
+    accounts: document.getElementById('settings-pane-accounts'),
+    features: document.getElementById('settings-pane-features'),
+    toolbar: document.getElementById('settings-pane-toolbar'),
+    'command-palette': document.getElementById('settings-pane-command-palette'),
+    reading: document.getElementById('settings-pane-reading'),
+  };
+  function setActiveTab(tab: string) {
+    tabs.forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+    Object.entries(panes).forEach(([key, el]) => {
+      if (el) el.hidden = key !== tab;
+    });
+  }
+  tabs.forEach((btn) => {
+    btn.addEventListener('click', () => setActiveTab(btn.dataset.tab ?? 'general'));
+  });
+
+  // ---------- Generic delegate rows — re-click the real control elsewhere
+  // on the page, same one-source-of-truth pattern Header.astro's mobile
+  // "more tools" menu already uses, so none of these duplicate logic. ----------
+  document.querySelectorAll<HTMLElement>('#settings-modal-overlay [data-delegate]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const targetId = row.dataset.delegate;
+      if (targetId) document.getElementById(targetId)?.click();
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>('#settings-modal-overlay [data-delegate-size]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document
+        .querySelector<HTMLButtonElement>(`.text-size-option[data-size="${btn.dataset.delegateSize}"]`)
+        ?.click();
+    });
+  });
+
+  // ---------- Accounts: login state ----------
+  const signedOutBlock = document.getElementById('settings-account-signed-out');
+  const signedInBlock = document.getElementById('settings-account-signed-in');
+  const emailEl = document.getElementById('settings-account-email');
+  const signoutBtn = document.getElementById('settings-signout-btn');
+
+  function syncAccountUI(email: string | null) {
+    if (signedOutBlock) signedOutBlock.hidden = !!email;
+    if (signedInBlock) signedInBlock.hidden = !email;
+    if (emailEl) emailEl.textContent = email ?? '';
+  }
+  syncAccountUI(getCurrentEmail());
+  document.addEventListener('learnitas:auth-changed', ((e: Event) => {
+    syncAccountUI((e as CustomEvent<{ email: string | null }>).detail.email);
+  }) as EventListener);
+  signoutBtn?.addEventListener('click', () => {
+    signOut();
+  });
+
+  // ---------- Accounts: AI persona — mirrors StudyAssistant.astro's own
+  // #assistant-persona-select rather than reimplementing the state machine;
+  // changing it here re-clicks... no, selects can't be delegate-clicked, so
+  // this syncs the other <select> directly and replays its 'change' event
+  // so its already-wired listener picks up the new value. ----------
+  const PERSONA_KEY = 'learnitas-ai-persona';
+  const personaSelect = document.getElementById('settings-persona-select') as HTMLSelectElement | null;
+  if (personaSelect) {
+    const stored = localStorage.getItem(PERSONA_KEY);
+    personaSelect.value = isPersona(stored) ? stored : 'direct';
+    personaSelect.addEventListener('change', () => {
+      if (!isPersona(personaSelect.value)) return;
+      localStorage.setItem(PERSONA_KEY, personaSelect.value);
+      const assistantSelect = document.getElementById('assistant-persona-select') as HTMLSelectElement | null;
+      if (assistantSelect) {
+        assistantSelect.value = personaSelect.value;
+        assistantSelect.dispatchEvent(new Event('change'));
+      }
+    });
+  }
+
+  // ---------- Toolbar visibility ----------
+  const HIDDEN_TOOLS_KEY = 'learnitas-hidden-tools';
+  const toolbarCheckboxes = Array.from(document.querySelectorAll<HTMLInputElement>('.settings-toolbar-checkbox'));
+  const hiddenIds = new Set((localStorage.getItem(HIDDEN_TOOLS_KEY) ?? '').split(' ').filter(Boolean));
+  toolbarCheckboxes.forEach((cb) => {
+    cb.checked = !hiddenIds.has(cb.dataset.toolId ?? '');
+    cb.addEventListener('change', () => {
+      const id = cb.dataset.toolId;
+      if (!id) return;
+      if (cb.checked) hiddenIds.delete(id);
+      else hiddenIds.add(id);
+      const value = Array.from(hiddenIds).join(' ');
+      if (value) {
+        document.documentElement.setAttribute('data-hidden-tools', value);
+        localStorage.setItem(HIDDEN_TOOLS_KEY, value);
+      } else {
+        document.documentElement.removeAttribute('data-hidden-tools');
+        localStorage.removeItem(HIDDEN_TOOLS_KEY);
+      }
+    });
+  });
+
+  // ---------- Reset all local preferences ----------
+  document.getElementById('settings-reset-btn')?.addEventListener('click', () => {
+    [
+      'learnitas-theme',
+      'learnitas-text-size',
+      'learnitas-crt',
+      'learnitas-sidebar',
+      'learnitas-navbar',
+      'learnitas-ipad-mode',
+      'learnitas-secondary-panel',
+      'learnitas-secondary-panel-width',
+      'learnitas-secondary-panel-tab',
+      'learnitas-hidden-tools',
+      'learnitas-ai-persona',
+    ].forEach((k) => localStorage.removeItem(k));
+    window.location.reload();
+  });
+</script>
+
+<style>
+  .settings-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4vh 1.5rem;
+    background: hsl(var(--shadow-color) / 0.55);
+  }
+  .settings-overlay[hidden] {
+    display: none;
+  }
+
+  .settings-box {
+    width: min(52rem, 100%);
+    max-height: min(38rem, 92vh);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 24px 56px -16px hsl(var(--shadow-color) / 0.6);
+    overflow: hidden;
+    animation: settings-pop-in 0.15s ease both;
+  }
+  @keyframes settings-pop-in {
+    from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+  }
+
+  .settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1.1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-inset);
+    flex-shrink: 0;
+  }
+  .settings-title {
+    font-size: 0.7rem;
+    color: var(--brass);
+    letter-spacing: 0.05em;
+    margin: 0;
+  }
+  .settings-close {
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .settings-close:hover {
+    color: var(--accent);
+    background: var(--bg-elevated);
+  }
+
+  .settings-body {
+    display: grid;
+    grid-template-columns: 11rem minmax(0, 1fr);
+    min-height: 0;
+    flex: 1;
+  }
+
+  .settings-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.75rem;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+  }
+  .settings-tab {
+    text-align: left;
+    padding: 0.55rem 0.7rem;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ink-muted);
+    font-family: var(--font-display);
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .settings-tab:hover {
+    background: var(--bg-inset);
+    color: var(--ink);
+  }
+  .settings-tab[aria-selected='true'] {
+    background: var(--bg-inset);
+    color: var(--accent);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+
+  .settings-panes {
+    min-width: 0;
+    overflow-y: auto;
+    padding: 1.1rem 1.3rem;
+  }
+  .settings-pane[hidden] {
+    display: none;
+  }
+
+  .settings-pane-desc {
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+    margin: 0 0 0.9rem;
+    line-height: 1.5;
+  }
+  .settings-pane-note {
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+    margin: 0.7rem 0 0;
+    line-height: 1.5;
+  }
+
+  .settings-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.65rem 0.75rem;
+    margin-bottom: 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    text-decoration: none;
+    cursor: pointer;
+    justify-content: space-between;
+  }
+  .settings-row:hover {
+    border-color: var(--brass);
+    color: var(--accent);
+  }
+  .settings-row :global(.pixel-icon) {
+    color: var(--brass);
+    flex-shrink: 0;
+  }
+  .settings-row span:first-of-type {
+    flex: 1;
+  }
+
+  .settings-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0.9rem 0;
+  }
+
+  .settings-danger-btn {
+    padding: 0.55rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--accent);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .settings-danger-btn:hover {
+    border-color: var(--accent);
+    background: var(--bg-inset);
+  }
+
+  .settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--ink);
+    margin-bottom: 0.5rem;
+  }
+  .settings-select {
+    padding: 0.5rem 0.6rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+  }
+
+  .settings-account-block[hidden] {
+    display: none;
+  }
+
+  .settings-toolbar-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+  .settings-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.3rem;
+    font-size: 0.86rem;
+    color: var(--ink);
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .settings-checkbox-row:hover {
+    background: var(--bg-inset);
+  }
+  .settings-checkbox-row input {
+    accent-color: var(--accent);
+    width: 15px;
+    height: 15px;
+  }
+
+  .settings-kbd {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--ink-faint);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.1rem 0.4rem;
+  }
+
+  .settings-chip-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .settings-chip {
+    padding: 0.5rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--ink-muted);
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .settings-chip:hover {
+    border-color: var(--brass);
+    color: var(--brass);
+  }
+
+  @media (max-width: 640px) {
+    .settings-body {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+    .settings-tabs {
+      flex-direction: row;
+      flex-wrap: wrap;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+  }
+</style>
